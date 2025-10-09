@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@observe-create/schemas": "workspace:*",
+    "@supabase/supabase-js": "^2.43.0",
+    "@xenova/transformers": "^2.17.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {

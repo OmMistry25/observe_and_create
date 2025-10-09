@@ -107,14 +107,37 @@ export async function POST(request: NextRequest) {
 
     const insertedCount = insertedEvents?.length || 0;
 
-    // 4. Queue embedding jobs (placeholder for T06)
-    // For now, we'll just count events that have text content
-    const queuedEmbeddings = events.filter(
-      (e) => e.title || e.text || e.url
-    ).length;
+    // 4. Generate embeddings for inserted events
+    let queuedEmbeddings = 0;
+    
+    if (insertedEvents && insertedEvents.length > 0) {
+      try {
+        // Import embedding utilities dynamically to avoid issues with Transformers.js
+        const { generateEventEmbeddingsBatch } = await import('@observe-create/ingest');
+        
+        // Prepare events for embedding
+        const eventsForEmbedding = insertedEvents.map((event: any, index: number) => ({
+          id: event.id,
+          title: events[index].title,
+          text: events[index].text,
+          url: events[index].url,
+        }));
 
-    // TODO T06: Actually queue embedding jobs here
-    // For example: await queueEmbeddingJob(insertedEvents)
+        // Generate embeddings (async, but we don't wait for completion)
+        generateEventEmbeddingsBatch(supabase, eventsForEmbedding)
+          .then((count) => {
+            console.log(`[Ingest] Generated ${count} embeddings in background`);
+          })
+          .catch((error) => {
+            console.error('[Ingest] Error generating embeddings:', error);
+          });
+
+        queuedEmbeddings = eventsForEmbedding.length;
+      } catch (error) {
+        console.error('[Ingest] Failed to queue embeddings:', error);
+        // Don't fail the request if embeddings fail
+      }
+    }
 
     // 5. Return success response
     const response: IngestResponse = {

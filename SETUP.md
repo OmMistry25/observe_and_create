@@ -236,7 +236,80 @@ pnpm dev
 
 See `apps/web/API.md` for full API documentation.
 
+---
+
+## T06: Embedding Worker
+
+### What's Included
+
+✅ **Local Embedding Model**
+- Uses `@xenova/transformers` (Transformers.js) for privacy-first local processing
+- `all-MiniLM-L6-v2` model (384-dimensional vectors)
+- No external API calls - runs entirely in Node.js
+
+✅ **Embedding Utilities** (`packages/ingest/src/embeddings.ts`)
+- Generate embeddings for single or batch texts
+- Extract searchable text from events (title + text + URL)
+- Cosine similarity calculation for vector comparison
+
+✅ **Database Integration** (`packages/ingest/src/db.ts`)
+- Store embeddings in `event_embeddings` table (as JSONB)
+- Batch embedding generation
+- kNN similarity search
+
+✅ **API Integration**
+- `/api/ingest` automatically generates embeddings after inserting events
+- `/api/embeddings/search` - semantic search endpoint
+- Embeddings generated asynchronously (non-blocking)
+
+✅ **Test UI** (`/test-embeddings`)
+- Search for similar events using semantic similarity
+- Visual display of similarity scores
+- Test semantic understanding
+
+### Testing
+
+1. **Insert test events** (if you haven't already):
+   - Visit: http://localhost:3002/test-ingest
+   - Click "Test Valid Payload" to insert 2 events
+
+2. **Wait for embeddings** (about 10-20 seconds):
+   - First time will download the model (~23MB)
+   - Subsequent runs will be faster (model cached)
+   - Check terminal logs for: `[Embeddings] Generated X embeddings`
+
+3. **Test semantic search**:
+   - Visit: http://localhost:3002/test-embeddings
+   - Try searching for: "example page", "test", "search"
+   - You should see events ranked by semantic similarity
+
+4. **Verify in Supabase**:
+   - Go to Table Editor → `event_embeddings`
+   - You should see embedding records (stored as JSONB arrays)
+   - Each embedding is 384 numbers
+
+### How It Works
+
+1. When events are ingested via `/api/ingest`:
+   - Events are stored in the `events` table
+   - Embeddings are generated asynchronously in the background
+   - Combined text is created from title + text + URL
+   - Vector embedding is generated using the local model
+   - Stored in `event_embeddings` as JSONB
+
+2. For semantic search:
+   - Query text is converted to an embedding
+   - Cosine similarity is calculated against all stored embeddings
+   - Top k most similar events are returned with similarity scores
+
+### Notes
+
+- First run downloads the model (~23MB) - this may take a minute
+- Model is cached locally in `.cache/transformers`
+- Embeddings are generated asynchronously to not block API responses
+- Currently uses JSONB storage; pgvector will be added later for better performance
+
 ### Next Steps
 
-Ready to proceed to **T06: Embedding Worker**
+Ready to proceed to **T07: Dashboard Activity Feed**
 

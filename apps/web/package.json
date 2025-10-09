@@ -10,6 +10,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@observe-create/ingest": "workspace:*",
     "@observe-create/schemas": "workspace:*",
     "@radix-ui/react-slot": "^1.2.3",
     "@supabase/ssr": "^0.5.0",

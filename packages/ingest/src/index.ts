@@ -1,2 +1,3 @@
-// Ingest pipeline exports will be added here
-export {};
+// Embedding utilities
+export * from './embeddings';
+export * from './db';
