@@ -309,7 +309,80 @@ See `apps/web/API.md` for full API documentation.
 - Embeddings are generated asynchronously to not block API responses
 - Currently uses JSONB storage; pgvector will be added later for better performance
 
+---
+
+## T07: Dashboard Activity Feed
+
+### What's Included
+
+✅ **Events API** (`/api/events`)
+- GET endpoint with pagination
+- Filter by domain, type, and intent
+- RLS automatically enforced
+- Returns events with interaction_quality data
+
+✅ **Activity Feed UI** (`/dashboard`)
+- Table view of recent events
+- Event type and intent badges
+- Friction score indicators
+- Formatted timestamps and dwell times
+- Domain extraction from URLs
+
+✅ **Filtering**
+- Domain filter (partial match)
+- Type filter (8 event types)
+- Intent filter (6 intent categories)
+- Real-time filter application
+
+✅ **Pagination**
+- Page-based navigation
+- 20 events per page
+- Previous/Next buttons
+- Total count display
+
+### Testing
+
+1. **Add events** (if you haven't):
+   - Visit: http://localhost:3000/test-ingest
+   - Click "Test Valid Payload" multiple times to create more events
+
+2. **View Activity Feed**:
+   - Visit: http://localhost:3000/dashboard
+   - You should see all your events listed
+
+3. **Test Filters**:
+   - Filter by domain: Enter "example.com"
+   - Filter by type: Select "click" or "search"
+   - Filter by intent: Select any (note: intent requires T06.1 to populate)
+   - Click "Apply Filters"
+
+4. **Test Pagination**:
+   - If you have >20 events, you'll see pagination
+   - Click "Next" and "Previous" to navigate
+
+5. **Verify RLS**:
+   - Events shown are only yours (filtered by user_id)
+   - Sign in as different users to see different events
+
+### Features
+
+- **Visual Indicators**:
+  - Blue badge: Event type
+  - Green badge: Inferred intent
+  - Red badge: High friction score
+  
+- **Event Details**:
+  - Title or domain name
+  - Full domain
+  - Text snippet (if available)
+  - Timestamp
+  - Dwell time (if available)
+
+- **Empty States**:
+  - Helpful message when no events
+  - Link to test-ingest page
+
 ### Next Steps
 
-Ready to proceed to **T07: Dashboard Activity Feed**
+Ready to proceed to **T08: Timeline Chart**
 
