@@ -114,5 +114,42 @@ Should return: `{"status": "ok", "message": "Supabase connection successful"}`
 
 ---
 
-**Once migrations are applied successfully, we can proceed to T03: RLS Policies**
+## T03: RLS Policies
+
+### Apply RLS Policies
+
+**Via Supabase Dashboard:**
+
+1. Open your Supabase project dashboard
+2. Go to **SQL Editor**
+3. Click **New Query**
+4. Open the file: `/Users/ommistry/observe_and_create/infra/supabase/supabase/migrations/20240101000001_rls_policies.sql`
+5. Copy all contents and paste into the SQL editor
+6. Click **Run**
+7. You should see: "Success. No rows returned"
+
+**Via CLI:**
+
+```bash
+cd /Users/ommistry/observe_and_create
+pnpm db:push
+```
+
+### Verify RLS Policies
+
+1. Visit: http://localhost:3002/test-rls
+2. Click "Test RLS Policies"
+3. You should see:
+   - Status: `unauthenticated` (before signing up)
+   - RLS is blocking queries (this is correct behavior!)
+
+**What RLS does:**
+- ✅ Users can only access their own data
+- ✅ Anonymous clients are blocked from reading any data
+- ✅ All tables enforce `auth.uid()` checks
+- ✅ Pattern templates are public (read-only) for all authenticated users
+
+---
+
+**Once RLS policies are applied, we can proceed to the next tasks**
 
