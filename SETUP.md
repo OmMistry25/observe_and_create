@@ -191,7 +191,52 @@ pnpm dev
 
 5. Sign out from the dashboard header
 
+---
+
+## T05: Ingest API Route
+
+### What's Included
+
+✅ **Event Validation Schemas**
+- Zod schemas in `packages/schemas` for event validation
+- Support for 8 event types: click, search, form, nav, focus, blur, idle, error
+- Batch validation (1-100 events per request)
+
+✅ **API Route**
+- POST `/api/ingest` endpoint with authentication
+- Validates events against schema
+- Inserts events into database
+- Returns success/error responses with details
+
+✅ **Test UI**
+- `/test-ingest` page to test valid and invalid payloads
+- Shows request/response for debugging
+
+### Testing
+
+1. Make sure you're signed in (visit `/auth/signin` if needed)
+
+2. Visit: http://localhost:3001/test-ingest
+
+3. Click "Test Valid Payload" → Should get:
+   - Status 200
+   - `success: true`
+   - `inserted: 2`
+   - `queued_embeddings: 2`
+
+4. Click "Test Invalid Payload" → Should get:
+   - Status 400
+   - Validation errors listed
+
+5. Verify in Supabase:
+   - Go to Table Editor → `events`
+   - You should see 2 new events with your user_id
+
+### API Documentation
+
+See `apps/web/API.md` for full API documentation.
+
 ### Next Steps
 
-Ready to proceed to **T05: Browser Extension Foundation**
+Ready to proceed to **T06: Embedding Worker**
 

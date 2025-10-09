@@ -1,2 +1,2 @@
-// Schema exports will be added here
-export {};
+// Event schemas
+export * from './events';
