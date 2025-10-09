@@ -58,5 +58,61 @@
 
 ---
 
-**Once you've completed these steps and the connection test works, we can proceed to T02: DB Migrations**
+## T02: Database Migrations
+
+### Apply the Schema
+
+**Option A: Via Supabase Dashboard (Easiest)**
+
+1. Open your Supabase project dashboard
+2. Go to **SQL Editor** in the left sidebar
+3. Click **New Query**
+4. Open the file: `/Users/ommistry/observe_and_create/infra/supabase/supabase/migrations/20240101000000_initial_schema.sql`
+5. Copy all contents and paste into the SQL editor
+6. Click **Run** (or press Cmd/Ctrl + Enter)
+7. You should see: "Success. No rows returned"
+
+**Option B: Via CLI**
+
+```bash
+# From project root
+cd /Users/ommistry/observe_and_create
+
+# Link to your remote project (you'll be prompted for project ref)
+pnpm db:link
+
+# Push migrations
+pnpm db:push
+```
+
+### Verify the Migration
+
+1. In Supabase dashboard, go to **Table Editor**
+2. You should see 13 new tables:
+   - profiles
+   - domains
+   - sessions
+   - events
+   - event_embeddings
+   - interaction_quality
+   - patterns
+   - pattern_templates
+   - automations
+   - automation_versions
+   - triggers
+   - runs
+   - automation_feedback
+
+3. Test via your app:
+```bash
+cd /Users/ommistry/observe_and_create
+pnpm dev
+# Visit http://localhost:3000/api/health
+```
+
+Should return: `{"status": "ok", "message": "Supabase connection successful"}`
+
+---
+
+**Once migrations are applied successfully, we can proceed to T03: RLS Policies**
 

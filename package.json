@@ -11,12 +11,16 @@
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "test": "turbo run test",
-    "type-check": "turbo run type-check"
+    "type-check": "turbo run type-check",
+    "db:link": "cd infra/supabase/supabase && npx supabase link",
+    "db:push": "cd infra/supabase/supabase && npx supabase db push",
+    "db:reset": "cd infra/supabase/supabase && npx supabase db reset"
   },
   "devDependencies": {
     "@turbo/gen": "^2.0.0",
     "turbo": "^2.0.0",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "supabase": "^2.48.3"
   },
   "engines": {
     "node": ">=18.0.0",
@@ -24,4 +28,3 @@
   },
   "packageManager": "pnpm@8.15.0"
 }
-
