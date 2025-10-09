@@ -6,6 +6,7 @@ import { createBrowserClient } from '@/lib/supabase-client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { TimelineChart } from '@/components/TimelineChart';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -118,8 +119,18 @@ export default function DashboardPage() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-6">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight">Activity Feed</h2>
+            <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
             <p className="text-muted-foreground mt-2">
+              Your browser activity intelligence and insights
+            </p>
+          </div>
+
+          {/* Timeline Chart */}
+          <TimelineChart hours={24} />
+
+          <div className="pt-4">
+            <h3 className="text-2xl font-bold tracking-tight">Activity Feed</h3>
+            <p className="text-muted-foreground mt-1">
               Recent browser events captured from your activity
             </p>
           </div>

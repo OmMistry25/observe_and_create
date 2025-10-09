@@ -382,7 +382,68 @@ See `apps/web/API.md` for full API documentation.
   - Helpful message when no events
   - Link to test-ingest page
 
+---
+
+## T08: Timeline Chart
+
+### What's Included
+
+✅ **Timeline API** (`/api/analytics/timeline`)
+- Aggregates dwell time by hour
+- Groups by domain with intent breakdown
+- Configurable time window (default 24h, max 7 days)
+- Returns top 5 domains by dwell time
+
+✅ **Interactive Chart** (`TimelineChart` component)
+- Stacked area chart using Recharts
+- Shows dwell time per domain over time
+- Color-coded domains (top 5)
+- Formatted time labels and durations
+- Responsive design
+
+✅ **Dashboard Integration**
+- Timeline chart at top of dashboard
+- 24-hour aggregation by default
+- Empty state with helpful message
+- Smooth gradients for visual appeal
+
+### Features
+
+- **Hourly Buckets**: Data aggregated into 1-hour time slots
+- **Domain Stacking**: See which domains you spent time on
+- **Top Domains**: Shows top 5 domains by total dwell time
+- **Intent Breakdown**: Data includes intent classification per domain
+- **Duration Formatting**: Smart formatting (seconds, minutes, hours)
+
+### Testing
+
+1. **Add events with dwell time**:
+   - The test events in `/test-ingest` include `dwell_ms: 1500`
+   - Visit: http://localhost:3000/test-ingest
+   - Click "Test Valid Payload" 10-15 times to create activity
+
+2. **View timeline chart**:
+   - Visit: http://localhost:3000/dashboard
+   - See the stacked area chart at the top
+   - Domains are color-coded and stacked
+
+3. **Check aggregation**:
+   - Mouse over the chart to see tooltips with exact durations
+   - Each bar represents a 1-hour time window
+   - Colors represent different domains
+
+4. **Empty state**:
+   - If no events with dwell time exist, you'll see a helpful message
+
+### Notes
+
+- Dwell time must be present in events (`dwell_ms` field)
+- Test events include 1.5 seconds of dwell time
+- Real events from the extension will have actual dwell times
+- Chart shows last 24 hours by default
+- Can be extended to 7 days (168 hours)
+
 ### Next Steps
 
-Ready to proceed to **T08: Timeline Chart**
+Ready to proceed to **T09: Extension Scaffold**
 
