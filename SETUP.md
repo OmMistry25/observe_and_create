@@ -151,5 +151,47 @@ pnpm db:push
 
 ---
 
-**Once RLS policies are applied, we can proceed to the next tasks**
+---
+
+## T04: Next.js App Scaffold
+
+### What's Included
+
+✅ **Authentication Pages**
+- `/auth/signup` - Email/password registration
+- `/auth/signin` - Email/password login
+
+✅ **Protected Routes**
+- `/dashboard` - Main dashboard with Activity Feed, Patterns, and Automations sections
+- Client-side authentication guards
+
+✅ **UI Components**
+- shadcn/ui components (Button, Card, Input)
+- Tailwind CSS styling
+- Responsive layout
+
+✅ **Supabase Configuration**
+- Email confirmation disabled for development
+- Profile creation on signup
+- Session management with cookies
+
+### Usage
+
+1. Start the dev server:
+```bash
+cd /Users/ommistry/observe_and_create
+pnpm dev
+```
+
+2. Visit: http://localhost:3001 (or whatever port Next.js assigns)
+
+3. Click "Get Started" → Sign up with email/password
+
+4. After signup, you'll be redirected to the dashboard
+
+5. Sign out from the dashboard header
+
+### Next Steps
+
+Ready to proceed to **T05: Browser Extension Foundation**
 
