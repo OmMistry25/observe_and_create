@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase';
 import { IngestBatchSchema, IngestResponse } from '@observe-create/schemas';
 import { ZodError } from 'zod';
+import { createClient } from '@supabase/supabase-js';
 
 /**
  * POST /api/ingest
@@ -14,8 +15,32 @@ import { ZodError } from 'zod';
  */
 export async function POST(request: NextRequest) {
   try {
-    // 1. Get authenticated user
-    const supabase = await createServerSupabaseClient();
+    // 1. Get authenticated user and create client with their token
+    const authHeader = request.headers.get('authorization');
+    const token = authHeader?.replace('Bearer ', '');
+
+    if (!token) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized - No token provided' },
+        { status: 401 }
+      );
+    }
+
+    // Create a Supabase client with the user's access token
+    // This ensures RLS policies use the correct auth context
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        global: {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      }
+    );
+
+    // Verify the token and get user
     const {
       data: { user },
       error: authError,
@@ -23,7 +48,7 @@ export async function POST(request: NextRequest) {
 
     if (authError || !user) {
       return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
+        { success: false, error: 'Unauthorized - Invalid token' },
         { status: 401 }
       );
     }

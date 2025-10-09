@@ -1,13 +1,23 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { createBrowserClient } from '@/lib/supabase-client';
 
 export default function TestIngestPage() {
+  const router = useRouter();
   const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    const supabase = createBrowserClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUser(user);
+    });
+  }, []);
 
   const validPayload = {
     events: [
@@ -103,6 +113,29 @@ export default function TestIngestPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {!user && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4 mb-4">
+                <p className="text-sm text-yellow-800">
+                  ⚠️ You need to be signed in to test the API.{' '}
+                  <Button
+                    variant="link"
+                    className="p-0 h-auto text-yellow-800 underline"
+                    onClick={() => router.push('/auth/signin')}
+                  >
+                    Sign in here
+                  </Button>
+                </p>
+              </div>
+            )}
+
+            {user && (
+              <div className="bg-green-50 border border-green-200 rounded-md p-4 mb-4">
+                <p className="text-sm text-green-800">
+                  ✅ Signed in as: {user.email}
+                </p>
+              </div>
+            )}
+
             <div className="flex gap-2">
               <Button
                 onClick={() => testIngest(validPayload, 'Valid Payload')}
