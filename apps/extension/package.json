@@ -8,14 +8,14 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@observe-create/sdk": "workspace:*",
-    "@observe-create/schemas": "workspace:*"
+    "@observe-create/schemas": "workspace:*",
+    "@observe-create/sdk": "workspace:*"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.268",
+    "@vitejs/plugin-react": "^4.2.0",
+    "sharp": "^0.34.4",
     "typescript": "^5.3.3",
-    "vite": "^5.2.0",
-    "@vitejs/plugin-react": "^4.2.0"
+    "vite": "^5.2.0"
   }
 }
-

@@ -443,7 +443,96 @@ See `apps/web/API.md` for full API documentation.
 - Chart shows last 24 hours by default
 - Can be extended to 7 days (168 hours)
 
+---
+
+## T09: Extension Scaffold
+
+### What's Included
+
+✅ **MV3 Manifest** (`manifest.json`)
+- Manifest Version 3 configuration
+- Permissions: storage, tabs, activeTab, scripting
+- Host permissions for all URLs
+- Content scripts and background service worker
+- Popup configuration
+
+✅ **Background Service Worker** (`src/background.ts`)
+- Extension lifecycle management
+- Message passing between components
+- Tab tracking for dwell time
+- Settings management
+- Keep-alive mechanism
+
+✅ **Content Script** (`src/content.ts`)
+- Injected into all pages
+- Captures clicks, forms, navigation
+- Tracks page visibility for dwell time
+- Extracts DOM paths
+- Detects search queries
+
+✅ **Popup UI** (`src/popup.html` + `src/popup.ts`)
+- Enable/disable toggle
+- Activity stats display
+- Quick dashboard access
+- Settings link
+- Modern, clean design
+
+✅ **Build System** (Vite)
+- Multi-entry point build
+- Automatic file copying
+- ES modules output
+- No minification for debugging
+
+### Loading in Chrome
+
+1. **Build the extension**:
+   ```bash
+   cd apps/extension
+   pnpm build
+   ```
+
+2. **Load in Chrome**:
+   - Go to `chrome://extensions/`
+   - Enable "Developer mode"
+   - Click "Load unpacked"
+   - Select `/Users/ommistry/observe_and_create/apps/extension/dist`
+
+3. **Verify**:
+   - Extension appears in toolbar
+   - Click icon to see popup
+   - Check console for `[Background]` and `[Content]` messages
+
+See `apps/extension/LOADING.md` for detailed instructions.
+
+### Features
+
+- **Event Capture**:
+  - Clicks with DOM path
+  - Form submissions
+  - Navigation with dwell time
+  - Search query detection
+  - Page focus/blur
+
+- **Privacy**:
+  - Enable/disable toggle
+  - Runs only when enabled
+  - Local storage for settings
+
+- **UI**:
+  - Clean, modern popup
+  - Activity stats
+  - Quick dashboard access
+
+### Testing
+
+1. Load extension in Chrome
+2. Browse any website
+3. Open DevTools Console (F12)
+4. See `[Content] Script loaded` messages
+5. Click the extension icon to see popup
+6. Check Background service worker: `chrome://extensions/` → "service worker"
+
 ### Next Steps
 
-Ready to proceed to **T09: Extension Scaffold**
+Ready to proceed to **T10: Consent + Scopes UI**
 
