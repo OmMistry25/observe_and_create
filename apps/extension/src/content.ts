@@ -63,6 +63,12 @@ document.addEventListener('click', (e: MouseEvent) => {
     className: target.className || null,
     text: target.textContent?.trim().substring(0, 100) || null,
     domPath: getDomPath(target),
+    attributes: getElementAttributes(target),
+    position: {
+      x: e.clientX,
+      y: e.clientY,
+    },
+    timestamp: new Date().toISOString(),
   };
   
   captureEvent(clickData);
@@ -79,6 +85,8 @@ document.addEventListener('submit', (e: Event) => {
     action: form.action || null,
     method: form.method || 'get',
     fieldCount: form.elements.length,
+    fields: getFormFields(form),
+    timestamp: new Date().toISOString(),
   };
   
   captureEvent(formData);
@@ -139,6 +147,45 @@ function getDomPath(element: HTMLElement): string {
   }
   
   return path.join(' > ');
+}
+
+/**
+ * Get element attributes
+ */
+function getElementAttributes(element: HTMLElement): Record<string, string> {
+  const attributes: Record<string, string> = {};
+  const importantAttrs = ['href', 'src', 'alt', 'title', 'data-testid', 'aria-label'];
+  
+  for (const attr of importantAttrs) {
+    const value = element.getAttribute(attr);
+    if (value) {
+      attributes[attr] = value;
+    }
+  }
+  
+  return attributes;
+}
+
+/**
+ * Get form field information
+ */
+function getFormFields(form: HTMLFormElement): any[] {
+  const fields: any[] = [];
+  
+  for (let i = 0; i < form.elements.length; i++) {
+    const element = form.elements[i] as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
+    
+    if (element.name || element.id) {
+      fields.push({
+        name: element.name || element.id,
+        type: element.type || element.tagName.toLowerCase(),
+        required: element.hasAttribute('required'),
+        placeholder: element.getAttribute('placeholder') || null,
+      });
+    }
+  }
+  
+  return fields;
 }
 
 /**

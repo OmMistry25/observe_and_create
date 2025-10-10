@@ -611,7 +611,88 @@ CREATE INDEX IF NOT EXISTS idx_profiles_consent_given_at ON profiles(consent_giv
    - Save changes to database
    - Delete all data functionality
 
+---
+
+## T11: Sensors v1
+
+### What's Included
+
+✅ **Extension → Server Integration**
+- Event upload to `/api/ingest` endpoint
+- Authentication using user session tokens
+- Event batching (10 events per batch)
+- Automatic retry for failed uploads
+- Offline storage for events when disconnected
+
+✅ **Enhanced Event Capture**
+- Detailed click tracking with DOM paths
+- Form field information extraction
+- Element attributes (href, src, alt, title, etc.)
+- Click position coordinates
+- Enhanced search query detection
+
+✅ **Authentication System**
+- Session retrieval from web app
+- Token validation and refresh
+- Extension popup shows auth status
+- Automatic session management
+
+✅ **Event Queuing & Batching**
+- Local event queue (10 events per batch)
+- Periodic upload every 30 seconds
+- Offline storage for failed uploads
+- Retry mechanism for stored events
+
+✅ **Test Page** (`/test-extension`)
+- Interactive elements for testing
+- Real-time event display
+- Debug information and console logs
+- Step-by-step testing instructions
+
+### Features
+
+- **Real-time Event Upload**:
+  - Events captured by extension
+  - Batched and uploaded to server
+  - Automatic retry on failure
+  - Offline storage when disconnected
+
+- **Enhanced Data Capture**:
+  - DOM context and element paths
+  - Text snippets and attributes
+  - Form field details
+  - Click positions and timestamps
+
+- **Authentication**:
+  - Extension gets session from web app
+  - Automatic token validation
+  - Session refresh when needed
+  - Auth status in popup
+
+### Testing
+
+1. **Load Extension**:
+   - Build: `cd apps/extension && pnpm build`
+   - Load in Chrome: `chrome://extensions/` → Load unpacked
+   - Select: `/Users/ommistry/observe_and_create/apps/extension/dist`
+
+2. **Test Event Capture**:
+   - Go to: `http://localhost:3000/test-extension`
+   - Click buttons, fill forms, interact with page
+   - Check console for `[Content]` and `[Background]` messages
+
+3. **Verify Upload**:
+   - Check dashboard: `http://localhost:3000/dashboard`
+   - Events should appear in activity feed
+   - Timeline chart should update
+
+4. **Check Console Logs**:
+   - `[Content] Script loaded on: <url>`
+   - `[Content] Event captured: ...`
+   - `[Background] Queued event, queue size: X`
+   - `[Background] Uploaded X events successfully`
+
 ### Next Steps
 
-Ready to proceed to **T11: Sensors v1**
+Ready to proceed to **T11.1: Friction Detection Sensors**
 

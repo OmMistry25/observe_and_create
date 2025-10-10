@@ -4,6 +4,8 @@
  * Controls for the extension popup UI
  */
 
+import { getUserSession, isAuthenticated } from './auth';
+
 console.log('[Popup] Loaded');
 
 // Elements
@@ -16,14 +18,27 @@ const helpLink = document.getElementById('helpLink') as HTMLAnchorElement;
 const eventCount = document.getElementById('eventCount') as HTMLElement;
 const domainCount = document.getElementById('domainCount') as HTMLElement;
 
-// Load current status
-chrome.storage.local.get(['enabled', 'stats'], (result) => {
+// Load current status and check authentication
+chrome.storage.local.get(['enabled', 'stats'], async (result) => {
   const enabled = result.enabled ?? true;
   updateUI(enabled);
   
   if (result.stats) {
     eventCount.textContent = result.stats.eventCount || '0';
     domainCount.textContent = result.stats.domainCount || '0';
+  }
+
+  // Check authentication status
+  const authenticated = await isAuthenticated();
+  if (!authenticated) {
+    // Try to get session from web app
+    const session = await getUserSession();
+    if (!session) {
+      // Show authentication required message
+      statusText.textContent = 'Not Authenticated';
+      statusIndicator.classList.add('disabled');
+      statusIndicator.classList.remove('enabled');
+    }
   }
 });
 

@@ -6,7 +6,10 @@
  * - Message passing between content scripts and popup
  * - Storage management
  * - Tab tracking
+ * - Event upload to server
  */
+
+import { refreshSessionIfNeeded } from './auth';
 
 console.log('[Background] Service worker started');
 
@@ -138,15 +141,18 @@ async function uploadEventBatch() {
   eventQueue = [];
 
   try {
-    // Get user session
-    const { session } = await chrome.storage.local.get(['session']);
-    if (!session?.access_token) {
-      console.log('[Background] No session found, storing events for later');
+    // Check and refresh session if needed
+    const hasValidSession = await refreshSessionIfNeeded();
+    if (!hasValidSession) {
+      console.log('[Background] No valid session found, storing events for later');
       // Store events for later upload
       const { storedEvents = [] } = await chrome.storage.local.get(['storedEvents']);
       await chrome.storage.local.set({ storedEvents: [...storedEvents, ...events] });
       return;
     }
+
+    // Get user session
+    const { session } = await chrome.storage.local.get(['session']);
 
     const response = await fetch('http://localhost:3000/api/ingest', {
       method: 'POST',
