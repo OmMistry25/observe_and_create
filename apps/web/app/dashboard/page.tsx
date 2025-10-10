@@ -25,8 +25,25 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const supabase = createBrowserClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) {
+        router.push('/auth/signin');
+        return;
+      }
+
       setUser(user);
+      
+      // Check if user has given consent
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('consent_data, consent_given_at')
+        .eq('id', user.id)
+        .single();
+
+      if (!profile?.consent_data || !profile?.consent_given_at) {
+        router.push('/onboarding');
+        return;
+      }
     });
   }, []);
 
@@ -118,11 +135,21 @@ export default function DashboardPage() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-6">
-          <div>
-            <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
-            <p className="text-muted-foreground mt-2">
-              Your browser activity intelligence and insights
-            </p>
+          <div className="flex justify-between items-start">
+            <div>
+              <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+              <p className="text-muted-foreground mt-2">
+                Your browser activity intelligence and insights
+              </p>
+            </div>
+            <div className="flex space-x-2">
+              <Button variant="outline" onClick={() => router.push('/settings')}>
+                Settings
+              </Button>
+              <Button variant="outline" onClick={() => router.push('/test-ingest')}>
+                Test Ingest
+              </Button>
+            </div>
           </div>
 
           {/* Timeline Chart */}

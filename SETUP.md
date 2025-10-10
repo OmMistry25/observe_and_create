@@ -532,7 +532,86 @@ See `apps/extension/LOADING.md` for detailed instructions.
 5. Click the extension icon to see popup
 6. Check Background service worker: `chrome://extensions/` → "service worker"
 
+---
+
+## T10: Consent + Scopes UI
+
+### What's Included
+
+✅ **Onboarding Flow** (`/onboarding`)
+- 3-step consent process
+- Data collection category selection
+- Privacy settings configuration
+- Clear explanations of what's collected
+
+✅ **Settings Page** (`/settings`)
+- Manage consent preferences
+- Update data collection categories
+- Configure privacy settings
+- Delete all data option
+
+✅ **Consent Storage** (Database)
+- `consent_data` JSONB column in profiles
+- `consent_given_at` timestamp
+- Structured consent preferences
+
+✅ **Dashboard Integration**
+- Consent check on dashboard load
+- Redirect to onboarding if no consent
+- Settings button in dashboard header
+
+### Database Migration Required
+
+Run this SQL in your Supabase SQL editor:
+
+```sql
+-- Add consent support to profiles table
+ALTER TABLE profiles 
+ADD COLUMN IF NOT EXISTS consent_data JSONB,
+ADD COLUMN IF NOT EXISTS consent_given_at TIMESTAMPTZ;
+
+-- Add index for consent queries
+CREATE INDEX IF NOT EXISTS idx_profiles_consent_given_at ON profiles(consent_given_at);
+```
+
+### Features
+
+- **Data Collection Categories**:
+  - Click tracking
+  - Search queries
+  - Form interactions
+  - Page navigation
+  - Dwell time measurement
+
+- **Privacy Settings**:
+  - Data retention period (7 days to 1 year)
+  - Analytics opt-in/out
+  - Data sharing preferences
+
+- **User Control**:
+  - Granular category toggles
+  - Settings page for updates
+  - Delete all data option
+  - Clear consent explanations
+
+### Testing
+
+1. **First-time user flow**:
+   - Sign up → Redirected to `/onboarding`
+   - Complete 3-step consent process
+   - Redirected to dashboard
+
+2. **Existing user**:
+   - Dashboard checks for consent
+   - Redirects to onboarding if missing
+   - Settings page accessible from dashboard
+
+3. **Settings management**:
+   - Update consent preferences
+   - Save changes to database
+   - Delete all data functionality
+
 ### Next Steps
 
-Ready to proceed to **T10: Consent + Scopes UI**
+Ready to proceed to **T11: Sensors v1**
 

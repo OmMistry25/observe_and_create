@@ -59,7 +59,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case 'EVENT_CAPTURED':
       // Event captured by content script
       console.log('[Background] Event captured:', message.event);
-      // TODO: Queue for upload to server
+      queueEventForUpload(message.event);
       sendResponse({ received: true });
       break;
       
@@ -103,15 +103,107 @@ chrome.windows.onFocusChanged.addListener((windowId) => {
   }
 });
 
+// Event queue for batching uploads
+let eventQueue: any[] = [];
+const BATCH_SIZE = 10;
+const UPLOAD_INTERVAL = 30000; // 30 seconds
+
+/**
+ * Queue event for upload to server
+ */
+async function queueEventForUpload(event: any) {
+  // Check if user has given consent
+  const { enabled } = await chrome.storage.local.get(['enabled']);
+  if (!enabled) {
+    console.log('[Background] Extension disabled, skipping event');
+    return;
+  }
+
+  eventQueue.push(event);
+  console.log(`[Background] Queued event, queue size: ${eventQueue.length}`);
+
+  // Upload if batch is full
+  if (eventQueue.length >= BATCH_SIZE) {
+    await uploadEventBatch();
+  }
+}
+
+/**
+ * Upload event batch to server
+ */
+async function uploadEventBatch() {
+  if (eventQueue.length === 0) return;
+
+  const events = [...eventQueue];
+  eventQueue = [];
+
+  try {
+    // Get user session
+    const { session } = await chrome.storage.local.get(['session']);
+    if (!session?.access_token) {
+      console.log('[Background] No session found, storing events for later');
+      // Store events for later upload
+      const { storedEvents = [] } = await chrome.storage.local.get(['storedEvents']);
+      await chrome.storage.local.set({ storedEvents: [...storedEvents, ...events] });
+      return;
+    }
+
+    const response = await fetch('http://localhost:3000/api/ingest', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ events }),
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      console.log(`[Background] Uploaded ${result.inserted} events successfully`);
+    } else {
+      console.error('[Background] Upload failed:', response.status, response.statusText);
+      // Store failed events for retry
+      const { storedEvents = [] } = await chrome.storage.local.get(['storedEvents']);
+      await chrome.storage.local.set({ storedEvents: [...storedEvents, ...events] });
+    }
+  } catch (error) {
+    console.error('[Background] Upload error:', error);
+    // Store failed events for retry
+    const { storedEvents = [] } = await chrome.storage.local.get(['storedEvents']);
+    await chrome.storage.local.set({ storedEvents: [...storedEvents, ...events] });
+  }
+}
+
+/**
+ * Retry stored events
+ */
+async function retryStoredEvents() {
+  const { storedEvents = [] } = await chrome.storage.local.get(['storedEvents']);
+  if (storedEvents.length === 0) return;
+
+  console.log(`[Background] Retrying ${storedEvents.length} stored events`);
+  
+  // Move stored events to queue
+  eventQueue = [...storedEvents];
+  await chrome.storage.local.set({ storedEvents: [] });
+  
+  // Upload them
+  await uploadEventBatch();
+}
+
 // Keep service worker alive
 // Note: Service workers in MV3 can be terminated at any time
 // Use chrome.alarms for periodic tasks
 if (chrome.alarms) {
   chrome.alarms.create('keepAlive', { periodInMinutes: 1 });
+  chrome.alarms.create('uploadEvents', { periodInMinutes: 0.5 }); // Every 30 seconds
 
-  chrome.alarms.onAlarm.addListener((alarm) => {
+  chrome.alarms.onAlarm.addListener(async (alarm) => {
     if (alarm.name === 'keepAlive') {
       console.log('[Background] Keep-alive ping');
+    } else if (alarm.name === 'uploadEvents') {
+      await uploadEventBatch();
+      await retryStoredEvents();
     }
   });
 } else {
