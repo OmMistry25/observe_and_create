@@ -878,6 +878,120 @@ Pattern detection unlocks workflow insights and automation suggestions! 🎯
 
 ---
 
+## T06.1: Semantic Analysis Pipeline
+
+Events are now automatically analyzed for intent classification and friction detection.
+
+### What Changed
+
+✅ **Semantic Module** (`packages/ingest/src/semantic.ts`)
+- Intent classification using rule-based patterns
+- Friction score calculation (0-1 scale)
+- Success/failure detection
+- Struggle signal identification
+
+✅ **Intent Categories**
+- `research`: Browsing, searching, learning
+- `transaction`: Purchasing, checkout, payments
+- `comparison`: Comparing products/services
+- `creation`: Creating content, filling forms
+- `communication`: Email, chat, messaging
+- `unknown`: Unclassified activity
+
+✅ **Ingest Pipeline** (`apps/web/app/api/ingest/route.ts`)
+- Automatically classifies intent for every event
+- Calculates friction score based on event metadata
+- Stores results in `interaction_quality` table
+- Non-blocking: doesn't fail if classification fails
+
+✅ **API Integration** (`apps/web/app/api/events/route.ts`)
+- Events now include `interaction_quality` data
+- Intent filters work correctly in dashboard
+- Friction scores available for analysis
+
+### How It Works
+
+1. **Intent Classification**:
+   - URL patterns: `/cart`, `/checkout` → transaction
+   - Event types: `search`, `form` → research/creation
+   - Domain signals: `mail.google.com` → communication
+   - Content signals: "compare", "vs" → comparison
+
+2. **Friction Detection**:
+   - Friction events → score +0.5
+   - Error events → score +0.6
+   - Rage clicks (>3) → score +0.3
+   - Slow load (>5s) → score +0.3
+   - Rapid scrolling → score +0.2
+   - Maximum score: 1.0
+
+3. **Success Detection**:
+   - Success: URLs with `/success`, `/confirmation`, `/thank-you`
+   - Failure: URLs with `/error`, `/failed`, or error events
+   - Unknown: Everything else
+
+4. **Struggle Signals**:
+   - Array of strings describing friction
+   - Examples: `rapid_scrolling`, `rage_clicks`, `slow_page_load`
+
+### Testing Intent Classification
+
+1. **Research intent**:
+   - Search on Google: `https://google.com/search?q=...`
+   - Visit Wikipedia, Stack Overflow, GitHub
+   - Expected: `inferred_intent: "research"`
+
+2. **Transaction intent**:
+   - Visit any `/cart` or `/checkout` page
+   - Click "buy now" or "add to cart" buttons
+   - Expected: `inferred_intent: "transaction"`
+
+3. **Communication intent**:
+   - Open Gmail, Slack, or Discord
+   - Check inbox or messages
+   - Expected: `inferred_intent: "communication"`
+
+4. **Comparison intent**:
+   - Visit pages with "compare" or "vs" in URL/title
+   - Open multiple product pages
+   - Expected: `inferred_intent: "comparison"`
+
+5. **Creation intent**:
+   - Fill out any form
+   - Click submit buttons
+   - Visit `/create` or `/new` pages
+   - Expected: `inferred_intent: "creation"`
+
+6. **Verify in dashboard**:
+   - Go to `http://localhost:3000/dashboard`
+   - Use intent filter dropdown
+   - Select "Research", "Transaction", etc.
+   - Events should filter correctly now!
+
+### Database Schema
+
+```sql
+interaction_quality (
+  id UUID PRIMARY KEY,
+  event_id UUID REFERENCES events(id),
+  friction_score NUMERIC(3,2),  -- 0.00 to 1.00
+  success BOOLEAN,               -- true/false/null
+  inferred_intent TEXT,          -- research, transaction, etc.
+  struggle_signals TEXT[],       -- array of friction indicators
+  created_at TIMESTAMPTZ
+)
+```
+
+### Benefits
+
+- **Intent Filters Work**: Dashboard filters now return actual results
+- **Friction Tracking**: Identify where users struggle
+- **Success Metrics**: Track completion rates
+- **Pattern Detection**: Better understanding of workflows
+- **No Manual Tagging**: Fully automatic classification
+
+---
+
 ## T13: Context Builder
 
 Events now include context arrays with IDs of 3-5 preceding events, enabling better pattern detection and workflow understanding.

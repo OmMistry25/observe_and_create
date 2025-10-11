@@ -107,7 +107,55 @@ export async function POST(request: NextRequest) {
 
     const insertedCount = insertedEvents?.length || 0;
 
-    // 4. Generate embeddings for inserted events
+    // 4. Classify intent and analyze events (T06.1)
+    if (insertedEvents && insertedEvents.length > 0) {
+      try {
+        const ingestModule = await import('@observe-create/ingest');
+        const analyzeEvent = ingestModule.analyzeEvent;
+        
+        if (!analyzeEvent) {
+          console.error('[Ingest] analyzeEvent function not found in module');
+          throw new Error('analyzeEvent not exported');
+        }
+        
+        // Analyze each event for intent and friction
+        const interactionQualityData = insertedEvents.map((event: any, index: number) => {
+          const eventData = events[index];
+          const analysis = analyzeEvent({
+            type: eventData.type,
+            url: eventData.url,
+            title: eventData.title,
+            text: eventData.text,
+            meta: eventData.meta,
+          });
+
+          return {
+            event_id: event.id,
+            inferred_intent: analysis.inferred_intent,
+            friction_score: analysis.friction_score,
+            success: analysis.success,
+            struggle_signals: analysis.struggle_signals,
+          };
+        });
+
+        // Insert interaction quality data
+        const { error: qualityError } = await supabase
+          .from('interaction_quality')
+          .insert(interactionQualityData);
+
+        if (qualityError) {
+          console.error('[Ingest] Error inserting interaction quality:', qualityError);
+          // Don't fail the request if quality analysis fails
+        } else {
+          console.log(`[Ingest] Analyzed ${interactionQualityData.length} events for intent`);
+        }
+      } catch (error) {
+        console.error('[Ingest] Failed to analyze events:', error);
+        // Don't fail the request if analysis fails
+      }
+    }
+
+    // 5. Generate embeddings for inserted events
     let queuedEmbeddings = 0;
     
     if (insertedEvents && insertedEvents.length > 0) {
@@ -139,7 +187,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 5. Return success response
+    // 6. Return success response
     const response: IngestResponse = {
       success: true,
       inserted: insertedCount,
