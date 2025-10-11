@@ -54,7 +54,6 @@ export async function GET(request: NextRequest) {
     // Parse query parameters
     const { searchParams } = new URL(request.url);
     const category = searchParams.get('category');
-    const tagsParam = searchParams.get('tags');
     const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100);
 
     // Build query
@@ -67,12 +66,6 @@ export async function GET(request: NextRequest) {
     // Apply category filter
     if (category) {
       query = query.eq('category', category);
-    }
-
-    // Apply tags filter (match any of the provided tags)
-    if (tagsParam) {
-      const tags = tagsParam.split(',').map(t => t.trim());
-      query = query.overlaps('tags', tags);
     }
 
     const { data: templates, error: templatesError } = await query;

@@ -913,9 +913,10 @@ The system now includes 15 pre-built workflow templates for common automation pa
 Each template includes:
 - **Name**: Human-readable template name
 - **Description**: What the workflow does
-- **Event Sequence**: Array of event patterns (JSONB)
+- **Template Pattern**: JSONB object with event sequence
+- **Match Criteria**: JSONB object with fuzzy matching rules (min_support, min_confidence)
 - **Category**: Workflow category
-- **Tags**: Keywords for filtering and matching
+- **Confidence Threshold**: Minimum confidence for matching (default 0.7)
 
 ### Example Templates
 
@@ -923,14 +924,20 @@ Each template includes:
 ```json
 {
   "name": "Email to Spreadsheet",
-  "event_sequence": [
-    {"type": "click", "domain": "mail.google.com"},
-    {"type": "click", "text_contains": ["copy"]},
-    {"type": "nav", "domain": "sheets.google.com"},
-    {"type": "click", "text_contains": ["paste"]}
-  ],
-  "category": "data_transfer",
-  "tags": ["email", "spreadsheet", "data_entry"]
+  "template_pattern": {
+    "sequence": [
+      {"type": "click", "domain_contains": "mail.google.com"},
+      {"type": "click", "text_contains": "copy"},
+      {"type": "nav", "domain_contains": "sheets.google.com"},
+      {"type": "click", "text_contains": "paste"}
+    ]
+  },
+  "match_criteria": {
+    "min_support": 3,
+    "min_confidence": 0.7,
+    "fuzzy_match": true
+  },
+  "category": "data_transfer"
 }
 ```
 
@@ -938,13 +945,19 @@ Each template includes:
 ```json
 {
   "name": "Daily Dashboard Check",
-  "event_sequence": [
-    {"type": "nav", "url_contains": "dashboard"},
-    {"type": "click", "text_contains": ["refresh"]},
-    {"type": "idle", "min_dwell_ms": 5000}
-  ],
-  "category": "monitoring",
-  "tags": ["dashboard", "analytics", "monitoring"]
+  "template_pattern": {
+    "sequence": [
+      {"type": "nav", "url_contains": "dashboard"},
+      {"type": "click", "text_contains": "refresh"},
+      {"type": "idle", "min_dwell_ms": 5000}
+    ]
+  },
+  "match_criteria": {
+    "min_support": 5,
+    "min_confidence": 0.8,
+    "fuzzy_match": true
+  },
+  "category": "monitoring"
 }
 ```
 
@@ -960,12 +973,12 @@ Each template includes:
 
 2. **Verify templates**:
    ```sql
-   SELECT name, category, array_length(tags, 1) as tag_count
+   SELECT name, category, confidence_threshold, is_active
    FROM pattern_templates
    ORDER BY created_at;
    ```
 
-3. **Expected result**: 15 templates inserted
+3. **Expected result**: 15 templates inserted with categories like `data_transfer`, `monitoring`, `data_entry`, etc.
 
 ### Using the Templates API
 
@@ -979,12 +992,7 @@ Each template includes:
    GET /api/templates?category=data_transfer
    ```
 
-3. **Filter by tags**:
-   ```bash
-   GET /api/templates?tags=email,spreadsheet
-   ```
-
-4. **Limit results**:
+3. **Limit results**:
    ```bash
    GET /api/templates?limit=5
    ```
