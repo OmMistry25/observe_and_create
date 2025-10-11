@@ -4,7 +4,7 @@
  * Controls for the extension popup UI
  */
 
-import { getUserSession, isAuthenticated } from './auth';
+// Auth functions will be defined inline to avoid ES6 module issues
 
 console.log('[Popup] Loaded');
 
@@ -29,15 +29,24 @@ chrome.storage.local.get(['enabled', 'stats'], async (result) => {
   }
 
   // Check authentication status
-  const authenticated = await isAuthenticated();
-  if (!authenticated) {
-    // Try to get session from web app
-    const session = await getUserSession();
-    if (!session) {
-      // Show authentication required message
-      statusText.textContent = 'Not Authenticated';
+  const { session } = await chrome.storage.local.get(['session']);
+  if (!session?.access_token) {
+    // Show authentication required message
+    statusText.textContent = 'Not Authenticated';
+    statusIndicator.classList.add('disabled');
+    statusIndicator.classList.remove('enabled');
+  } else {
+    // Check if token is expired
+    const tokenExpiry = session.expires_at * 1000;
+    const now = Date.now();
+    if (now >= tokenExpiry) {
+      statusText.textContent = 'Session Expired';
       statusIndicator.classList.add('disabled');
       statusIndicator.classList.remove('enabled');
+    } else {
+      statusText.textContent = 'Authenticated';
+      statusIndicator.classList.add('enabled');
+      statusIndicator.classList.remove('disabled');
     }
   }
 });

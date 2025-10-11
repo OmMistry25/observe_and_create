@@ -196,7 +196,7 @@ export default function TestExtensionPage() {
               <div className="bg-gray-100 p-4 rounded-lg">
                 <h3 className="font-semibold mb-2">Console Messages to Look For:</h3>
                 <ul className="text-sm space-y-1">
-                  <li>• <code>[Content] Script loaded on: {window.location.href}</code></li>
+                  <li>• <code>[Content] Script loaded on: [current URL]</code></li>
                   <li>• <code>[Content] Extension status: enabled</code></li>
                   <li>• <code>[Content] Event captured: ...</code></li>
                   <li>• <code>[Background] Event captured: ...</code></li>
@@ -208,9 +208,9 @@ export default function TestExtensionPage() {
               <div className="bg-gray-100 p-4 rounded-lg">
                 <h3 className="font-semibold mb-2">Current Page Info:</h3>
                 <ul className="text-sm space-y-1">
-                  <li>• URL: <code>{window.location.href}</code></li>
-                  <li>• Title: <code>{document.title}</code></li>
-                  <li>• User Agent: <code>{navigator.userAgent}</code></li>
+                  <li>• URL: <code>[current URL]</code></li>
+                  <li>• Title: <code>[page title]</code></li>
+                  <li>• User Agent: <code>[browser info]</code></li>
                 </ul>
               </div>
             </CardContent>

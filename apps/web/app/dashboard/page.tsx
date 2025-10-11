@@ -44,6 +44,21 @@ export default function DashboardPage() {
         router.push('/onboarding');
         return;
       }
+      
+      // Share session with extension
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        // Send session to extension via postMessage
+        window.postMessage({
+          type: 'SUPABASE_SESSION',
+          session: {
+            access_token: session.access_token,
+            refresh_token: session.refresh_token,
+            expires_at: session.expires_at,
+            user: session.user
+          }
+        }, '*');
+      }
     });
   }, []);
 
@@ -195,6 +210,7 @@ export default function DashboardPage() {
                     <option value="blur">Blur</option>
                     <option value="idle">Idle</option>
                     <option value="error">Error</option>
+                    <option value="friction">Friction</option>
                   </select>
                 </div>
                 <div>

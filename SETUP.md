@@ -696,3 +696,104 @@ CREATE INDEX IF NOT EXISTS idx_profiles_consent_given_at ON profiles(consent_giv
 
 Ready to proceed to **T11.1: Friction Detection Sensors**
 
+
+---
+
+## T11.1: Friction Detection Sensors
+
+The extension now includes advanced friction detection to identify user frustration:
+
+### Friction Sensors Implemented
+
+1. **Rapid Scrolling Detection**
+   - Tracks scroll velocity (pixels per millisecond)
+   - Flags frustration after 3 rapid scrolls (> 2px/ms)
+   - Event type: `friction` with `frictionType: 'rapid_scroll'`
+
+2. **Back Button Usage**
+   - Detects browser back button clicks
+   - Indicates navigation friction or user confusion
+   - Event type: `friction` with `frictionType: 'back_button'`
+
+3. **Form Abandonment**
+   - Tracks when users start filling forms but leave without submitting
+   - Records time spent and number of fields
+   - Event type: `friction` with `frictionType: 'form_abandon'`
+
+4. **Error Page Detection**
+   - Automatically detects 404 and error pages from page title
+   - Event type: `error` with `errorType: 'page_error'`
+
+5. **Slow Page Load Detection**
+   - Measures page load performance
+   - Flags loads > 3 seconds
+   - Includes DNS, TCP, request, and render timing
+   - Event type: `friction` with `frictionType: 'slow_load'`
+
+6. **Rage Click Detection**
+   - Detects 3+ clicks on same element within 1 second
+   - Strong indicator of UI frustration
+   - Event type: `friction` with `frictionType: 'rage_click'`
+
+### Testing Friction Sensors
+
+1. **Reload the extension**:
+   ```bash
+   cd /Users/ommistry/observe_and_create/apps/extension
+   pnpm build
+   ```
+   Then reload in Chrome at `chrome://extensions/`
+
+2. **Test rapid scrolling**:
+   - Go to any long page
+   - Scroll rapidly up and down multiple times
+   - Check console for friction events
+
+3. **Test rage clicking**:
+   - Click the same button/element 3+ times quickly
+   - Should trigger a rage_click event
+
+4. **Test form abandonment**:
+   - Start filling out a form
+   - Navigate away without submitting
+   - Should trigger form_abandon on page unload
+
+5. **Test back button**:
+   - Navigate between pages
+   - Use browser back button
+   - Should trigger back_button friction event
+
+6. **Verify in dashboard**:
+   - Go to `http://localhost:3000/dashboard`
+   - Filter by type: `friction` or `error`
+   - View captured friction events with details
+
+### Friction Event Metadata
+
+All friction events include rich metadata:
+- `frictionType`: Type of friction detected
+- `velocity`, `scrollDelta`: For rapid scrolling
+- `previousUrl`: For back button
+- `formId`, `timeSpent`, `fieldCount`: For form abandonment
+- `loadTime`, `dns`, `tcp`, `request`, `render`: For slow loads
+- `clickCount`, `element`: For rage clicks
+
+Friction detection helps identify pain points in user workflows! 🎯
+
+### Applying the Migration
+
+Run the following SQL in your Supabase SQL Editor:
+
+```sql
+-- Add 'friction' event type to the events table
+ALTER TABLE events DROP CONSTRAINT IF EXISTS events_type_check;
+
+ALTER TABLE events ADD CONSTRAINT events_type_check 
+  CHECK (type IN ('click', 'search', 'form', 'nav', 'focus', 'blur', 'idle', 'error', 'friction'));
+
+COMMENT ON CONSTRAINT events_type_check ON events IS 
+  'Valid event types including friction detection (T11.1)';
+```
+
+This adds the `friction` event type to the database schema, allowing friction detection events to be stored.
+

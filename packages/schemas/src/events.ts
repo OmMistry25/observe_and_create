@@ -12,6 +12,7 @@ export const EventTypeSchema = z.enum([
   'blur',
   'idle',
   'error',
+  'friction', // T11.1: Friction detection events
 ]);
 
 export type EventType = z.infer<typeof EventTypeSchema>;

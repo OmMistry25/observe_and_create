@@ -9,7 +9,7 @@
  * - Event upload to server
  */
 
-import { refreshSessionIfNeeded } from './auth';
+// Import auth functions dynamically to avoid ES6 module issues
 
 console.log('[Background] Service worker started');
 
@@ -141,18 +141,68 @@ async function uploadEventBatch() {
   eventQueue = [];
 
   try {
-    // Check and refresh session if needed
-    const hasValidSession = await refreshSessionIfNeeded();
-    if (!hasValidSession) {
-      console.log('[Background] No valid session found, storing events for later');
+    // Check session validity
+    const { session } = await chrome.storage.local.get(['session']);
+    if (!session?.access_token) {
+      console.log('[Background] No session found, storing events for later');
       // Store events for later upload
       const { storedEvents = [] } = await chrome.storage.local.get(['storedEvents']);
       await chrome.storage.local.set({ storedEvents: [...storedEvents, ...events] });
       return;
     }
 
-    // Get user session
-    const { session } = await chrome.storage.local.get(['session']);
+    // Check if token is expired
+    const tokenExpiry = session.expires_at * 1000;
+    const now = Date.now();
+    if (now >= tokenExpiry) {
+      console.log('[Background] Token expired, clearing session');
+      await chrome.storage.local.remove(['session']);
+      const { storedEvents = [] } = await chrome.storage.local.get(['storedEvents']);
+      await chrome.storage.local.set({ storedEvents: [...storedEvents, ...events] });
+      return;
+    }
+
+    // Transform events to match API schema
+    const transformedEvents = events.map(event => ({
+      device_id: 'extension-device', // TODO: Generate unique device ID
+      ts: event.timestamp || new Date().toISOString(),
+      type: event.type,
+      url: event.url,
+      title: event.title || '',
+      dom_path: event.domPath || event.element || '',
+      text: event.text || '',
+      meta: {
+        // Basic event metadata
+        tagName: event.tagName,
+        id: event.id,
+        className: event.className,
+        attributes: event.attributes,
+        position: event.position,
+        action: event.action,
+        method: event.method,
+        fieldCount: event.fieldCount,
+        fields: event.fields,
+        referrer: event.referrer,
+        dwellMs: event.dwellMs,
+        // Friction detection metadata (T11.1)
+        frictionType: event.frictionType,
+        velocity: event.velocity,
+        scrollDelta: event.scrollDelta,
+        previousUrl: event.previousUrl,
+        formId: event.formId,
+        timeSpent: event.timeSpent,
+        loadTime: event.loadTime,
+        dns: event.dns,
+        tcp: event.tcp,
+        request: event.request,
+        render: event.render,
+        clickCount: event.clickCount,
+        errorType: event.errorType,
+      },
+      dwell_ms: event.dwellMs,
+      // Remove session_id since it's optional and we don't have a UUID
+      context_events: [],
+    }));
 
     const response = await fetch('http://localhost:3000/api/ingest', {
       method: 'POST',
@@ -160,7 +210,7 @@ async function uploadEventBatch() {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${session.access_token}`,
       },
-      body: JSON.stringify({ events }),
+      body: JSON.stringify({ events: transformedEvents }),
     });
 
     if (response.ok) {
@@ -181,7 +231,7 @@ async function uploadEventBatch() {
 }
 
 /**
- * Retry stored events
+ * Retry stored events (in batches to avoid exceeding API limit)
  */
 async function retryStoredEvents() {
   const { storedEvents = [] } = await chrome.storage.local.get(['storedEvents']);
@@ -189,12 +239,20 @@ async function retryStoredEvents() {
 
   console.log(`[Background] Retrying ${storedEvents.length} stored events`);
   
-  // Move stored events to queue
-  eventQueue = [...storedEvents];
-  await chrome.storage.local.set({ storedEvents: [] });
+  // Upload in batches of 50 to stay under the 100-event API limit
+  const RETRY_BATCH_SIZE = 50;
   
-  // Upload them
-  await uploadEventBatch();
+  for (let i = 0; i < storedEvents.length; i += RETRY_BATCH_SIZE) {
+    const batch = storedEvents.slice(i, i + RETRY_BATCH_SIZE);
+    eventQueue = [...batch];
+    await uploadEventBatch();
+    
+    // Small delay between batches to avoid overwhelming the server
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+  
+  // Clear stored events after successful retry
+  await chrome.storage.local.set({ storedEvents: [] });
 }
 
 // Keep service worker alive
