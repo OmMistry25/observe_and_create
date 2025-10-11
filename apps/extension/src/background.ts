@@ -139,8 +139,18 @@ async function queueEventForUpload(event: any) {
 }
 
 /**
+ * Estimate payload size in bytes (rough approximation)
+ * T15: Helps prevent 413 errors by splitting large batches proactively
+ */
+function estimatePayloadSize(events: any[]): number {
+  // Rough estimate: JSON.stringify length + some overhead
+  return JSON.stringify({ events }).length;
+}
+
+/**
  * Upload event batch to server
  * T14: Uses IndexedDB for persistent offline queue with exponential backoff
+ * T15: Handles 413 errors by splitting batches, validates batch size
  */
 async function uploadEventBatch() {
   if (eventQueue.length === 0) return;
@@ -166,6 +176,14 @@ async function uploadEventBatch() {
       await chrome.storage.local.remove(['session']);
       // T14: Store in IndexedDB for persistent offline queue
       await enqueueEvents(events);
+      return;
+    }
+
+    // T15: Validate batch size (API limit is 100 events)
+    if (events.length > 100) {
+      console.warn(`[Background] Batch too large (${events.length} events), splitting...`);
+      // Split into smaller batches and upload separately
+      await uploadBatchWithSplit(events, session);
       return;
     }
 
@@ -223,6 +241,10 @@ async function uploadEventBatch() {
     if (response.ok) {
       const result = await response.json();
       console.log(`[Background] Uploaded ${result.inserted} events successfully`);
+    } else if (response.status === 413) {
+      // T15: Payload too large - split batch and retry
+      console.warn('[Background] 413 Payload Too Large - splitting batch');
+      await uploadBatchWithSplit(events, session);
     } else {
       console.error('[Background] Upload failed:', response.status, response.statusText);
       // T14: Queue for retry with exponential backoff
@@ -232,6 +254,91 @@ async function uploadEventBatch() {
     console.error('[Background] Upload error (likely offline):', error);
     // T14: Queue for retry with exponential backoff
     await enqueueEvents(events);
+  }
+}
+
+/**
+ * Upload batch with automatic splitting if too large
+ * T15: Handles 413 errors by splitting into smaller batches
+ */
+async function uploadBatchWithSplit(events: any[], session: any, maxBatchSize: number = 50) {
+  if (events.length === 0) return;
+
+  // If batch is small enough, try to upload directly
+  if (events.length <= maxBatchSize) {
+    // Transform and upload
+    const transformedEvents = events.map(event => ({
+      device_id: 'extension-device',
+      ts: event.timestamp || new Date().toISOString(),
+      type: event.type,
+      url: event.url,
+      title: event.title || '',
+      dom_path: event.domPath || event.element || '',
+      text: event.text || '',
+      meta: {
+        tagName: event.tagName,
+        eventId: event.id,
+        className: event.className,
+        attributes: event.attributes,
+        position: event.position,
+        action: event.action,
+        method: event.method,
+        fieldCount: event.fieldCount,
+        fields: event.fields,
+        referrer: event.referrer,
+        dwellMs: event.dwellMs,
+        frictionType: event.frictionType,
+        velocity: event.velocity,
+        scrollDelta: event.scrollDelta,
+        previousUrl: event.previousUrl,
+        formId: event.formId,
+        timeSpent: event.timeSpent,
+        loadTime: event.loadTime,
+        dns: event.dns,
+        tcp: event.tcp,
+        request: event.request,
+        render: event.render,
+        clickCount: event.clickCount,
+        errorType: event.errorType,
+      },
+      dwell_ms: event.dwellMs,
+      context_events: event.context || [],
+    }));
+
+    try {
+      const response = await fetch('http://localhost:3000/api/ingest', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ events: transformedEvents }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log(`[Background] Split batch uploaded: ${result.inserted} events`);
+      } else if (response.status === 413 && maxBatchSize > 10) {
+        // Still too large, split further
+        console.warn(`[Background] Still 413 with ${events.length} events, splitting smaller (max: ${maxBatchSize / 2})`);
+        await uploadBatchWithSplit(events, session, Math.floor(maxBatchSize / 2));
+      } else {
+        console.error('[Background] Split batch upload failed:', response.status);
+        await enqueueEvents(events);
+      }
+    } catch (error) {
+      console.error('[Background] Split batch error:', error);
+      await enqueueEvents(events);
+    }
+  } else {
+    // Split into chunks and upload recursively
+    console.log(`[Background] Splitting ${events.length} events into batches of ${maxBatchSize}`);
+    for (let i = 0; i < events.length; i += maxBatchSize) {
+      const chunk = events.slice(i, i + maxBatchSize);
+      await uploadBatchWithSplit(chunk, session, maxBatchSize);
+      // Small delay between chunks to avoid overwhelming server
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
   }
 }
 

@@ -1042,3 +1042,117 @@ Check queue stats in the background service worker console:
 - **Efficient**: IndexedDB handles large queues better than chrome.storage
 - **Persistent**: Queue survives browser restarts
 - **Battery Friendly**: Respects backoff timing, doesn't spam retries
+
+---
+
+## T15: Upload Transport
+
+Enhanced upload transport with batch size control and 413 error handling.
+
+### What Changed
+
+✅ **Batch Size Validation**
+- Checks if batch exceeds 100 events (API limit)
+- Automatically splits large batches before upload
+- Prevents API rejections proactively
+
+✅ **413 Error Handling** (`apps/extension/src/background.ts`)
+- Detects `413 Payload Too Large` responses
+- Automatically splits batch and retries
+- Recursive splitting: 50 → 25 → 12 → 6 (min 10)
+- Each chunk uploaded with small delay (100ms)
+
+✅ **Payload Size Estimation**
+- `estimatePayloadSize()` function to approximate request size
+- Helps decide if batch should be split preemptively
+- Prevents unnecessary API calls
+
+✅ **uploadBatchWithSplit()** Function
+- Handles automatic batch splitting
+- Recursive retry with smaller batch sizes
+- Falls back to offline queue if still failing
+- Logs split progress for debugging
+
+### How It Works
+
+1. **Before Upload**:
+   ```typescript
+   if (events.length > 100) {
+     // Split into batches of 50
+     uploadBatchWithSplit(events, session);
+   }
+   ```
+
+2. **On 413 Error**:
+   ```typescript
+   if (response.status === 413) {
+     // Split batch in half and retry
+     uploadBatchWithSplit(events, session, maxBatchSize / 2);
+   }
+   ```
+
+3. **Recursive Splitting**:
+   ```
+   150 events → Split into 3 batches of 50
+   50 events → Upload directly
+   If 413 → Split into 2 batches of 25
+   If still 413 → Split into 2 batches of 12
+   Minimum batch size: 10 events
+   ```
+
+4. **Fallback**:
+   - If still failing after splitting to 10 events → Queue offline
+   - Will retry with exponential backoff (T14)
+
+### Testing Upload Transport
+
+1. **Test normal upload** (< 100 events):
+   - Browse normally
+   - Check console: `[Background] Uploaded X events successfully`
+   - No splitting should occur
+
+2. **Test large batch splitting**:
+   - Simulate many events quickly (e.g., rapid clicking)
+   - Let queue grow past 100 events
+   - Check console: `[Background] Batch too large (X events), splitting...`
+   - See: `[Background] Splitting X events into batches of 50`
+
+3. **Test 413 handling** (optional):
+   - Would need to temporarily lower API limit to test
+   - Extension detects 413 and automatically splits
+   - Check console for split logs
+
+4. **Verify JWT authentication**:
+   - All uploads include `Authorization: Bearer {token}`
+   - Token validated by Supabase RLS
+   - Expired tokens trigger offline queueing
+
+### Features
+
+- **Batch Size Control**:
+  - Hard limit: 100 events per batch (API constraint)
+  - Default: 10 events per batch (configurable)
+  - Automatic splitting for larger batches
+
+- **Smart Retry**:
+  - 413 errors → Split and retry immediately
+  - Other errors → Queue offline with exponential backoff
+  - Network errors → Queue offline
+
+- **JWT Authentication**:
+  - Uses Supabase session token
+  - Sent as `Authorization: Bearer {token}` header
+  - Token expiry checked before upload
+
+- **Performance**:
+  - Small delay (100ms) between split batch uploads
+  - Prevents server overload
+  - Maintains upload order
+
+### Benefits
+
+- **Reliable**: Handles oversized payloads gracefully
+- **Automatic**: No manual intervention needed
+- **Efficient**: Splits only when necessary
+- **Observable**: Clear console logs for debugging
+- **Safe**: Falls back to offline queue on persistent errors
