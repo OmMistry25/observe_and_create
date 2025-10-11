@@ -10,6 +10,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@observe-create/automation": "workspace:*",
     "@observe-create/ingest": "workspace:*",
     "@observe-create/schemas": "workspace:*",
     "@radix-ui/react-checkbox": "^1.3.3",

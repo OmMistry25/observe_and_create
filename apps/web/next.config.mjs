@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  transpilePackages: ['@observe-create/schemas', '@observe-create/sdk', '@observe-create/ingest'],
+  transpilePackages: ['@observe-create/schemas', '@observe-create/sdk', '@observe-create/ingest', '@observe-create/automation'],
   // Webpack configuration for @xenova/transformers
   webpack: (config, { isServer }) => {
     if (isServer) {

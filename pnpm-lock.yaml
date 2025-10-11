@@ -48,6 +48,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@observe-create/automation':
+        specifier: workspace:*
+        version: link:../../packages/automation
       '@observe-create/ingest':
         specifier: workspace:*
         version: link:../../packages/ingest

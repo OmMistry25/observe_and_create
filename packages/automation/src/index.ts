@@ -1,2 +1,5 @@
-// Automation exports will be added here
-export {};
+/**
+ * @observe-create/automation
+ * Automation and pattern detection engine
+ */
+export * from './pattern-detection';

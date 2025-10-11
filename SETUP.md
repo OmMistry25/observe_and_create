@@ -797,3 +797,81 @@ COMMENT ON CONSTRAINT events_type_check ON events IS
 
 This adds the `friction` event type to the database schema, allowing friction detection events to be stored.
 
+
+---
+
+## T12: Pattern Detection (MVP)
+
+The system now includes frequency-based pattern mining to detect recurring workflows.
+
+### Pattern Detection Algorithm
+
+The pattern miner:
+1. Fetches events from the last 7 days
+2. Groups events by domain
+3. Extracts sequences of 3-5 consecutive events
+4. Identifies sequences that repeat 3+ times
+5. Calculates support (frequency) and confidence metrics
+6. Stores patterns in the database
+
+### Pattern Types
+
+- **Frequency Patterns**: Sequences that repeat frequently (e.g., "open dashboard → check reports → export data")
+- Support: Number of times the pattern occurs
+- Confidence: Reliability score (0-1)
+
+### Testing Pattern Detection
+
+1. **Generate activity**:
+   - Browse normally for a few days
+   - Repeat the same workflows multiple times
+   - Example: Visit the same 3-4 pages in sequence several times
+
+2. **Mine patterns**:
+   - Go to `http://localhost:3000/patterns`
+   - Click "Mine Patterns" button
+   - Wait for mining to complete
+
+3. **View patterns**:
+   - See detected patterns with support counts
+   - Each pattern shows the event sequence
+   - Patterns are sorted by frequency (most common first)
+
+### API Endpoints
+
+**POST /api/patterns/mine**
+- Triggers pattern mining for authenticated user
+- Returns: `{ success, patterns_found, patterns_stored }`
+
+**GET /api/patterns**
+- Retrieves patterns for authenticated user
+- Query params:
+  - `type`: Filter by pattern_type (frequency, temporal, semantic)
+  - `min_support`: Minimum support count (default: 3)
+  - `limit`: Number of results (default: 20)
+- Returns: `{ success, patterns, count }`
+
+### Files Created
+
+- `packages/automation/src/pattern-detection.ts` - Pattern mining algorithm
+- `apps/web/app/api/patterns/mine/route.ts` - Mining endpoint
+- `apps/web/app/api/patterns/route.ts` - Retrieval endpoint
+- `apps/web/app/patterns/page.tsx` - Patterns visualization page
+
+### Algorithm Details
+
+**Sequence Extraction:**
+- Extracts sequences of 3-5 events
+- Events must be temporally contiguous (< 5 minutes apart)
+- Groups by domain for site-specific patterns
+
+**Pattern Matching:**
+- Hashes sequences by: event type + URL path + DOM path
+- Counts occurrences of each unique hash
+- Filters for MIN_SUPPORT (3+ occurrences)
+
+**Metrics:**
+- **Support**: Number of times pattern occurs
+- **Confidence**: Pattern occurrences / first event occurrences
+
+Pattern detection unlocks workflow insights and automation suggestions! 🎯
