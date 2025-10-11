@@ -12,6 +12,41 @@ window.postMessage({ type: 'EXTENSION_LOG', message: `[Content] Script loaded on
 // Check if extension is enabled
 let isEnabled = true;
 
+// T13: Context Builder - Track recent events for context
+interface EventContext {
+  id: string;
+  type: string;
+  timestamp: string;
+}
+
+const recentEvents: EventContext[] = [];
+const MAX_CONTEXT_SIZE = 5;
+
+/**
+ * Generate a simple event ID based on timestamp and type
+ */
+function generateEventId(type: string): string {
+  return `${Date.now()}-${type}-${Math.random().toString(36).substr(2, 9)}`;
+}
+
+/**
+ * Add event to context and maintain FIFO buffer
+ */
+function addToContext(id: string, type: string, timestamp: string) {
+  recentEvents.push({ id, type, timestamp });
+  if (recentEvents.length > MAX_CONTEXT_SIZE) {
+    recentEvents.shift(); // Remove oldest
+  }
+}
+
+/**
+ * Get 3-5 preceding events for context
+ */
+function getEventContext(): string[] {
+  // Return IDs of last 3-5 events (excluding current)
+  return recentEvents.slice(-5).map(e => e.id);
+}
+
 chrome.runtime.sendMessage({ type: 'GET_STATUS' }, (response) => {
   if (chrome.runtime.lastError) {
     console.warn('[Content] Extension context invalidated:', chrome.runtime.lastError.message);
@@ -31,15 +66,27 @@ chrome.runtime.sendMessage({ type: 'GET_STATUS' }, (response) => {
 function captureEvent(eventData: any) {
   if (!isEnabled) return;
   
+  // Generate unique ID for this event
+  const eventId = generateEventId(eventData.type);
+  const timestamp = new Date().toISOString();
+  
+  // Get context before adding current event
+  const context = getEventContext();
+  
   const event = {
     ...eventData,
-    timestamp: new Date().toISOString(),
+    id: eventId,
+    timestamp,
     url: window.location.href,
     title: document.title,
+    context, // T13: Include 3-5 preceding event IDs
   };
   
+  // Add current event to context for next event
+  addToContext(eventId, eventData.type, timestamp);
+  
   // Log event capture to page console
-  const eventMsg = `[Content] Event captured: ${eventData.type} on ${eventData.tagName || 'element'}`;
+  const eventMsg = `[Content] Event captured: ${eventData.type} on ${eventData.tagName || 'element'} (context: ${context.length} events)`;
   console.log(eventMsg);
   window.postMessage({ type: 'EXTENSION_LOG', message: eventMsg }, '*');
   

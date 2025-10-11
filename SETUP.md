@@ -875,3 +875,76 @@ The pattern miner:
 - **Confidence**: Pattern occurrences / first event occurrences
 
 Pattern detection unlocks workflow insights and automation suggestions! 🎯
+
+---
+
+## T13: Context Builder
+
+Events now include context arrays with IDs of 3-5 preceding events, enabling better pattern detection and workflow understanding.
+
+### What Changed
+
+✅ **Content Script** (`apps/extension/src/content.ts`)
+- Tracks last 5 events in memory (FIFO buffer)
+- Generates unique IDs for each event (timestamp + type + random)
+- Includes `context` array with IDs of preceding events
+- Each event knows what came before it
+
+✅ **Background Script** (`apps/extension/src/background.ts`)
+- Passes `context` array to API as `context_events`
+- Stores event IDs in metadata for reference
+
+✅ **Schema** (`packages/schemas/src/events.ts`)
+- Already included `context_events` field (optional array of strings)
+
+### How It Works
+
+1. **Event Capture**:
+   ```typescript
+   // First event: context = []
+   // Second event: context = [id1]
+   // Third event: context = [id1, id2]
+   // Sixth event: context = [id2, id3, id4, id5]
+   ```
+
+2. **Context Window**:
+   - Maintains sliding window of last 5 events
+   - Oldest events are removed (FIFO)
+   - Each new event references 0-5 previous events
+
+3. **Usage**:
+   - Pattern detection can use context to understand sequences
+   - Workflow mining can trace event chains
+   - Enables "what led to this" analysis
+
+### Testing Context Builder
+
+1. **Reload extension**:
+   - Go to `chrome://extensions`
+   - Click the reload button on your extension
+
+2. **Capture events**:
+   - Browse any website
+   - Open browser console (F12)
+   - Look for messages like: `[Content] Event captured: click on BUTTON (context: 2 events)`
+   - Context count increases from 0 to 5
+
+3. **Check uploaded events**:
+   - Go to dashboard
+   - First event on a page has empty context array
+   - Subsequent events have context arrays with 1-5 IDs
+   - Maximum 5 context IDs per event
+
+4. **Verify in database**:
+   - Open Supabase dashboard
+   - Go to Table Editor → `events`
+   - Check the `context_events` column (JSONB array)
+   - Click on any event to see its context array
+
+### Benefits
+
+- **Better Pattern Detection**: Understand event sequences
+- **Workflow Mining**: Trace chains of actions
+- **Context-Aware Automations**: Triggers can check "what happened before"
+- **Debugging**: See event history for any action
+- **Improved Accuracy**: Patterns are more meaningful with context

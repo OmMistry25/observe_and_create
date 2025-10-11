@@ -174,7 +174,7 @@ async function uploadEventBatch() {
       meta: {
         // Basic event metadata
         tagName: event.tagName,
-        id: event.id,
+        eventId: event.id, // Store event ID in meta
         className: event.className,
         attributes: event.attributes,
         position: event.position,
@@ -200,8 +200,8 @@ async function uploadEventBatch() {
         errorType: event.errorType,
       },
       dwell_ms: event.dwellMs,
-      // Remove session_id since it's optional and we don't have a UUID
-      context_events: [],
+      // T13: Include context array (3-5 preceding event IDs)
+      context_events: event.context || [],
     }));
 
     const response = await fetch('http://localhost:3000/api/ingest', {
