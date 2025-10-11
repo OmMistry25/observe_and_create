@@ -9,7 +9,14 @@
  * - Event upload to server
  */
 
-// Import auth functions dynamically to avoid ES6 module issues
+// Import offline queue functions
+import {
+  enqueueEvents,
+  getEventsToRetry,
+  dequeueEvents,
+  scheduleRetry,
+  getQueueStats,
+} from './offline-queue';
 
 console.log('[Background] Service worker started');
 
@@ -133,6 +140,7 @@ async function queueEventForUpload(event: any) {
 
 /**
  * Upload event batch to server
+ * T14: Uses IndexedDB for persistent offline queue with exponential backoff
  */
 async function uploadEventBatch() {
   if (eventQueue.length === 0) return;
@@ -144,10 +152,9 @@ async function uploadEventBatch() {
     // Check session validity
     const { session } = await chrome.storage.local.get(['session']);
     if (!session?.access_token) {
-      console.log('[Background] No session found, storing events for later');
-      // Store events for later upload
-      const { storedEvents = [] } = await chrome.storage.local.get(['storedEvents']);
-      await chrome.storage.local.set({ storedEvents: [...storedEvents, ...events] });
+      console.log('[Background] No session found, queueing events offline');
+      // T14: Store in IndexedDB for persistent offline queue
+      await enqueueEvents(events);
       return;
     }
 
@@ -155,10 +162,10 @@ async function uploadEventBatch() {
     const tokenExpiry = session.expires_at * 1000;
     const now = Date.now();
     if (now >= tokenExpiry) {
-      console.log('[Background] Token expired, clearing session');
+      console.log('[Background] Token expired, queueing events offline');
       await chrome.storage.local.remove(['session']);
-      const { storedEvents = [] } = await chrome.storage.local.get(['storedEvents']);
-      await chrome.storage.local.set({ storedEvents: [...storedEvents, ...events] });
+      // T14: Store in IndexedDB for persistent offline queue
+      await enqueueEvents(events);
       return;
     }
 
@@ -218,41 +225,106 @@ async function uploadEventBatch() {
       console.log(`[Background] Uploaded ${result.inserted} events successfully`);
     } else {
       console.error('[Background] Upload failed:', response.status, response.statusText);
-      // Store failed events for retry
-      const { storedEvents = [] } = await chrome.storage.local.get(['storedEvents']);
-      await chrome.storage.local.set({ storedEvents: [...storedEvents, ...events] });
+      // T14: Queue for retry with exponential backoff
+      await enqueueEvents(events);
     }
   } catch (error) {
-    console.error('[Background] Upload error:', error);
-    // Store failed events for retry
-    const { storedEvents = [] } = await chrome.storage.local.get(['storedEvents']);
-    await chrome.storage.local.set({ storedEvents: [...storedEvents, ...events] });
+    console.error('[Background] Upload error (likely offline):', error);
+    // T14: Queue for retry with exponential backoff
+    await enqueueEvents(events);
   }
 }
 
 /**
- * Retry stored events (in batches to avoid exceeding API limit)
+ * Retry stored events from IndexedDB queue
+ * T14: Implements exponential backoff for failed uploads
  */
 async function retryStoredEvents() {
-  const { storedEvents = [] } = await chrome.storage.local.get(['storedEvents']);
-  if (storedEvents.length === 0) return;
+  try {
+    // Get queue stats
+    const stats = await getQueueStats();
+    if (stats.pending === 0) return;
 
-  console.log(`[Background] Retrying ${storedEvents.length} stored events`);
-  
-  // Upload in batches of 50 to stay under the 100-event API limit
-  const RETRY_BATCH_SIZE = 50;
-  
-  for (let i = 0; i < storedEvents.length; i += RETRY_BATCH_SIZE) {
-    const batch = storedEvents.slice(i, i + RETRY_BATCH_SIZE);
-    eventQueue = [...batch];
-    await uploadEventBatch();
+    console.log(`[Background] Retrying ${stats.pending} pending events (${stats.total} total in queue)`);
     
-    // Small delay between batches to avoid overwhelming the server
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Get events ready for retry (respects exponential backoff timing)
+    const queuedEvents = await getEventsToRetry(50); // Batch of 50
+    if (queuedEvents.length === 0) return;
+
+    // Check session validity
+    const { session } = await chrome.storage.local.get(['session']);
+    if (!session?.access_token) {
+      console.log('[Background] No session for retry, will try again later');
+      return;
+    }
+
+    // Extract event IDs and events
+    const eventIds = queuedEvents.map(qe => qe.id);
+    const events = queuedEvents.map(qe => qe.event);
+
+    // Transform events to match API schema
+    const transformedEvents = events.map(event => ({
+      device_id: 'extension-device',
+      ts: event.timestamp || new Date().toISOString(),
+      type: event.type,
+      url: event.url,
+      title: event.title || '',
+      dom_path: event.domPath || event.element || '',
+      text: event.text || '',
+      meta: {
+        tagName: event.tagName,
+        eventId: event.id,
+        className: event.className,
+        attributes: event.attributes,
+        position: event.position,
+        action: event.action,
+        method: event.method,
+        fieldCount: event.fieldCount,
+        fields: event.fields,
+        referrer: event.referrer,
+        dwellMs: event.dwellMs,
+        frictionType: event.frictionType,
+        velocity: event.velocity,
+        scrollDelta: event.scrollDelta,
+        previousUrl: event.previousUrl,
+        formId: event.formId,
+        timeSpent: event.timeSpent,
+        loadTime: event.loadTime,
+        dns: event.dns,
+        tcp: event.tcp,
+        request: event.request,
+        render: event.render,
+        clickCount: event.clickCount,
+        errorType: event.errorType,
+      },
+      dwell_ms: event.dwellMs,
+      context_events: event.context || [],
+    }));
+
+    // Attempt upload
+    const response = await fetch('http://localhost:3000/api/ingest', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ events: transformedEvents }),
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      console.log(`[Background] Retry successful: uploaded ${result.inserted} events`);
+      // Remove successfully uploaded events from queue
+      await dequeueEvents(eventIds);
+    } else {
+      console.error('[Background] Retry failed:', response.status, response.statusText);
+      // Schedule retry with exponential backoff
+      await scheduleRetry(eventIds);
+    }
+  } catch (error) {
+    console.error('[Background] Retry error:', error);
+    // Events remain in queue, will retry based on exponential backoff schedule
   }
-  
-  // Clear stored events after successful retry
-  await chrome.storage.local.set({ storedEvents: [] });
 }
 
 // Keep service worker alive

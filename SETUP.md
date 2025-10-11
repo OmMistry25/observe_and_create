@@ -948,3 +948,97 @@ Events now include context arrays with IDs of 3-5 preceding events, enabling bet
 - **Context-Aware Automations**: Triggers can check "what happened before"
 - **Debugging**: See event history for any action
 - **Improved Accuracy**: Patterns are more meaningful with context
+
+---
+
+## T14: Offline Queue
+
+The extension now uses IndexedDB for persistent event storage with exponential backoff retry logic.
+
+### What Changed
+
+✅ **Offline Queue Module** (`apps/extension/src/offline-queue.ts`)
+- IndexedDB wrapper for persistent event storage
+- Two object stores: `event_queue` and `retry_metadata`
+- Events survive browser restarts and extension reloads
+- Indexes on `nextRetryAt` and `timestamp` for efficient queries
+
+✅ **Background Script** (`apps/extension/src/background.ts`)
+- Uses IndexedDB instead of chrome.storage for event queue
+- Implements exponential backoff: 2^retryCount seconds (max 1 hour)
+- Respects retry timing - only attempts events when `nextRetryAt <= now`
+- Dequeues events after successful upload
+- Schedules retry for failed events
+
+### How It Works
+
+1. **Event Capture**:
+   - Events are queued in memory first (fast)
+   - Batch uploaded every 30 seconds or when batch size reaches 10
+   - If upload fails → stored in IndexedDB
+
+2. **Offline Behavior**:
+   - No network? Events go to IndexedDB immediately
+   - No auth token? Events go to IndexedDB
+   - API returns error? Events go to IndexedDB
+
+3. **Retry with Exponential Backoff**:
+   ```
+   Attempt 1: Retry immediately (0s)
+   Attempt 2: Retry after 2s
+   Attempt 3: Retry after 4s
+   Attempt 4: Retry after 8s
+   Attempt 5: Retry after 16s
+   Attempt 6: Retry after 32s
+   Attempt 7+: Retry after 1 hour (max)
+   ```
+
+4. **Recovery**:
+   - Periodic retry job runs every 30 seconds
+   - Checks IndexedDB for events ready to retry
+   - Uploads in batches of 50 events
+   - Successful uploads → removed from queue
+   - Failed uploads → rescheduled with longer backoff
+
+### Testing Offline Queue
+
+1. **Test offline capture**:
+   - Open Chrome DevTools (F12) → Network tab
+   - Click "Offline" to disable network
+   - Browse websites and capture events
+   - Check console: `[Background] Upload error (likely offline)`
+   - Events are queued in IndexedDB
+
+2. **Verify queue persistence**:
+   - Go to DevTools → Application → IndexedDB
+   - Find `observe_create_offline` database
+   - Check `event_queue` store - should contain your events
+   - Close and reopen browser - events still there!
+
+3. **Test reconnection**:
+   - Re-enable network in DevTools
+   - Wait ~30 seconds for retry job
+   - Check console: `[Background] Retry successful: uploaded X events`
+   - IndexedDB queue should be empty
+
+4. **Test exponential backoff**:
+   - Disable network again
+   - Capture some events
+   - Re-enable network briefly, then disable (simulate flaky connection)
+   - Watch console logs for increasing retry delays
+   - Example: `[OfflineQueue] Scheduled retry for event xxx in 8s (attempt 3)`
+
+### Queue Statistics
+
+Check queue stats in the background service worker console:
+- `[Background] Retrying X pending events (Y total in queue)`
+- Pending = ready to retry now
+- Total = all events in queue (including those waiting for backoff)
+
+### Benefits
+
+- **No Data Loss**: Events survive offline periods and browser crashes
+- **Smart Retry**: Exponential backoff prevents server hammering
+- **Efficient**: IndexedDB handles large queues better than chrome.storage
+- **Persistent**: Queue survives browser restarts
+- **Battery Friendly**: Respects backoff timing, doesn't spam retries
