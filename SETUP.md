@@ -878,6 +878,157 @@ Pattern detection unlocks workflow insights and automation suggestions! 🎯
 
 ---
 
+## T16: Template Library
+
+The system now includes 15 pre-built workflow templates for common automation patterns.
+
+### What Changed
+
+✅ **Workflow Templates** (`infra/supabase/supabase/migrations/20240101000004_workflow_templates.sql`)
+- 15 common workflow templates inserted into `pattern_templates` table
+- Templates cover data transfer, monitoring, content creation, and more
+- Each template includes event sequence, category, and tags
+
+✅ **Template API** (`apps/web/app/api/templates/route.ts`)
+- GET endpoint to retrieve templates
+- Filter by category or tags
+- Public read-only access for authenticated users
+
+### Template Categories
+
+1. **Data Transfer**: Email→Spreadsheet, Download→Upload, Multi-source Aggregation
+2. **Monitoring**: Dashboard Check
+3. **Data Entry**: Form Auto-fill, Invoice Processing
+4. **Reporting**: Weekly Reports
+5. **Content Creation**: Research→Document, Content Publishing
+6. **Social Media**: Cross-platform Posting
+7. **Development**: Bug Reports, Code Review
+8. **Shopping**: Price Comparison
+9. **Scheduling**: Meeting Coordination
+10. **Support**: Customer Support Responses
+11. **Accounting**: Invoice Processing
+
+### Template Structure
+
+Each template includes:
+- **Name**: Human-readable template name
+- **Description**: What the workflow does
+- **Event Sequence**: Array of event patterns (JSONB)
+- **Category**: Workflow category
+- **Tags**: Keywords for filtering and matching
+
+### Example Templates
+
+**Email to Spreadsheet:**
+```json
+{
+  "name": "Email to Spreadsheet",
+  "event_sequence": [
+    {"type": "click", "domain": "mail.google.com"},
+    {"type": "click", "text_contains": ["copy"]},
+    {"type": "nav", "domain": "sheets.google.com"},
+    {"type": "click", "text_contains": ["paste"]}
+  ],
+  "category": "data_transfer",
+  "tags": ["email", "spreadsheet", "data_entry"]
+}
+```
+
+**Daily Dashboard Check:**
+```json
+{
+  "name": "Daily Dashboard Check",
+  "event_sequence": [
+    {"type": "nav", "url_contains": "dashboard"},
+    {"type": "click", "text_contains": ["refresh"]},
+    {"type": "idle", "min_dwell_ms": 5000}
+  ],
+  "category": "monitoring",
+  "tags": ["dashboard", "analytics", "monitoring"]
+}
+```
+
+### Applying the Migration
+
+1. **Run the migration**:
+   ```bash
+   # In Supabase Dashboard
+   # Go to SQL Editor
+   # Paste contents of 20240101000004_workflow_templates.sql
+   # Click "Run"
+   ```
+
+2. **Verify templates**:
+   ```sql
+   SELECT name, category, array_length(tags, 1) as tag_count
+   FROM pattern_templates
+   ORDER BY created_at;
+   ```
+
+3. **Expected result**: 15 templates inserted
+
+### Using the Templates API
+
+1. **Get all templates**:
+   ```bash
+   GET /api/templates
+   ```
+
+2. **Filter by category**:
+   ```bash
+   GET /api/templates?category=data_transfer
+   ```
+
+3. **Filter by tags**:
+   ```bash
+   GET /api/templates?tags=email,spreadsheet
+   ```
+
+4. **Limit results**:
+   ```bash
+   GET /api/templates?limit=5
+   ```
+
+### Testing Templates
+
+1. **Apply the migration**:
+   - Copy SQL from migration file
+   - Paste into Supabase SQL Editor
+   - Run the query
+
+2. **Test API endpoint**:
+   - Go to dashboard (ensures you're authenticated)
+   - Open browser console
+   - Run:
+   ```javascript
+   fetch('/api/templates', {
+     headers: {
+       'Authorization': `Bearer ${SESSION_TOKEN}`
+     }
+   }).then(r => r.json()).then(console.log)
+   ```
+
+3. **Verify RLS**:
+   - Templates should be publicly readable
+   - All authenticated users can access
+   - No modification allowed (read-only)
+
+### Benefits
+
+- **Cold Start**: New users get template suggestions immediately
+- **Fuzzy Matching**: Templates help identify patterns even with sparse data
+- **Automation Ideas**: Templates suggest what automations are possible
+- **Standardization**: Common workflows have consistent structure
+- **Extensible**: Easy to add more templates via SQL
+
+### Next Steps
+
+- **T16.1**: Template matching algorithm using embedding similarity
+- **T17**: Enhanced pattern mining with temporal analysis
+- **T18**: Semantic clustering of similar events
+
+---
+
 ## T06.1: Semantic Analysis Pipeline
 
 Events are now automatically analyzed for intent classification and friction detection.
