@@ -24,6 +24,7 @@ export default function AutomationSuggestions() {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchSuggestions();
@@ -68,6 +69,62 @@ export default function AutomationSuggestions() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleApprove(suggestion: Suggestion) {
+    try {
+      setApprovingId(suggestion.id);
+
+      const supabase = createBrowserClient();
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        alert('Not authenticated');
+        return;
+      }
+
+      const response = await fetch('/api/automations', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: suggestion.name,
+          description: suggestion.description,
+          pattern_id: suggestion.source_type === 'pattern' ? suggestion.source_id : null,
+          sequence: suggestion.sequence,
+          scope: {
+            domains: suggestion.metadata?.domains || [],
+            permissions: ['tabs', 'activeTab'],
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        alert(`✅ Automation "${suggestion.name}" created successfully!`);
+        // Remove from suggestions after approval
+        setSuggestions(suggestions.filter(s => s.id !== suggestion.id));
+      } else {
+        alert(`Error: ${data.error}`);
+      }
+    } catch (err) {
+      console.error('Error approving automation:', err);
+      alert(`Failed to create automation: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setApprovingId(null);
+    }
+  }
+
+  function handleDismiss(suggestion: Suggestion) {
+    // T20: Just remove from UI for now, could add to "dismissed_suggestions" table later
+    setSuggestions(suggestions.filter(s => s.id !== suggestion.id));
   }
 
   if (loading) {
@@ -202,22 +259,19 @@ export default function AutomationSuggestions() {
             {/* Actions */}
             <div className="flex items-center space-x-2">
               <button
-                className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 transition-colors text-sm font-medium"
-                onClick={() => {
-                  // T20: Will implement approval flow
-                  alert('Approval flow coming in T20!');
-                }}
+                className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={() => handleApprove(suggestion)}
+                disabled={approvingId === suggestion.id}
               >
-                Create Automation
+                {approvingId === suggestion.id ? 'Creating...' : '✓ Approve & Create'}
               </button>
               <button
-                className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50 transition-colors text-sm"
-                onClick={() => {
-                  // Dismiss suggestion
-                  setSuggestions(suggestions.filter(s => s.id !== suggestion.id));
-                }}
+                className="px-3 py-2 border border-gray-300 rounded hover:bg-gray-50 transition-colors text-sm"
+                onClick={() => handleDismiss(suggestion)}
+                disabled={approvingId === suggestion.id}
+                title="Dismiss this suggestion"
               >
-                Dismiss
+                ✕
               </button>
             </div>
           </div>

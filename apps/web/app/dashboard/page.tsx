@@ -168,6 +168,16 @@ export default function DashboardPage() {
               <Button variant="outline" onClick={() => router.push('/test-ingest')}>
                 Test Ingest
               </Button>
+              <Button 
+                onClick={() => router.push('/automations')} 
+                variant="outline"
+                className="border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+              >
+                🤖 Automations
+              </Button>
+              <Button variant="outline" onClick={handleSignOut}>
+                Sign Out
+              </Button>
             </div>
           </div>
 
