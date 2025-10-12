@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { TimelineChart } from '@/components/TimelineChart';
-import TemplateSuggestions from '@/components/TemplateSuggestions';
 import AutomationSuggestions from '@/components/AutomationSuggestions';
 
 export default function DashboardPage() {
@@ -175,10 +174,7 @@ export default function DashboardPage() {
           {/* Timeline Chart */}
           <TimelineChart hours={24} />
 
-          {/* Template Suggestions */}
-          <TemplateSuggestions />
-
-          {/* T19: Automation Suggestions */}
+          {/* T19: Automation Suggestions - Only shows when enough data is collected */}
           <AutomationSuggestions />
 
           <div className="pt-4">

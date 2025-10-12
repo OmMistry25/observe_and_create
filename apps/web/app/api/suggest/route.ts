@@ -104,24 +104,9 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 5. Fetch matched templates ONLY if we don't have enough pattern-based suggestions
-    // This prioritizes user's actual detected patterns over generic templates
-    if (suggestions.length < limit) {
-      const { data: templateMatches, error: templatesError } = await supabase
-        .from('pattern_templates')
-        .select('*')
-        .limit(limit - suggestions.length); // Only fetch what we need
-
-      if (!templatesError && templateMatches) {
-        for (const template of templateMatches) {
-          // Check if user has activity matching this template
-          const suggestion = await generateTemplateSuggestion(supabase, user.id, template);
-          if (suggestion && suggestion.confidence >= minConfidence) {
-            suggestions.push(suggestion);
-          }
-        }
-      }
-    }
+    // 5. Templates disabled - only show real detected patterns
+    // Templates will be used for matching in the future, but not shown as suggestions
+    // Users should only see automations based on their actual behavior
 
     // 6. Sort by confidence and limit
     suggestions.sort((a, b) => b.confidence - a.confidence);
