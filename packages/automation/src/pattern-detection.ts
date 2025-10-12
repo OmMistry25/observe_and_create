@@ -47,6 +47,39 @@ const MAX_SEQUENCE_LENGTH = 5;
 const TIME_WINDOW_DAYS = 7;
 
 /**
+ * Domains to ignore in pattern detection
+ * These are typically development/testing environments or non-productive sites
+ */
+const IGNORED_DOMAINS = [
+  'localhost',
+  '127.0.0.1',
+  '0.0.0.0',
+  'localhost:3000',
+  'localhost:3001',
+  'localhost:3002',
+  'localhost:8080',
+];
+
+/**
+ * Check if a URL should be ignored based on domain
+ */
+function shouldIgnoreDomain(url: string): boolean {
+  try {
+    const urlObj = new URL(url);
+    const hostname = urlObj.hostname;
+    const hostnameWithPort = urlObj.host; // includes port
+    
+    return IGNORED_DOMAINS.some(ignored => 
+      hostname === ignored || 
+      hostnameWithPort === ignored ||
+      hostname.includes(ignored)
+    );
+  } catch {
+    return false; // If URL is invalid, don't ignore it
+  }
+}
+
+/**
  * Mine frequency-based patterns from user events
  */
 export async function mineFrequencyPatterns(
@@ -109,7 +142,12 @@ async function fetchRecentEvents(
     return [];
   }
 
-  return data || [];
+  // Filter out events from ignored domains
+  const filtered = (data || []).filter(event => !shouldIgnoreDomain(event.url));
+  
+  console.log(`[PatternDetection] Fetched ${data?.length || 0} events, ${filtered.length} after filtering ignored domains`);
+  
+  return filtered;
 }
 
 /**

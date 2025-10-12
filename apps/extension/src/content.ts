@@ -12,8 +12,38 @@ import { initNudgeSystem, queueNudge, type Nudge } from './nudgeManager';
 console.log('[Content] Script loaded on:', window.location.href);
 window.postMessage({ type: 'EXTENSION_LOG', message: `[Content] Script loaded on: ${window.location.href}` }, '*');
 
-// T18.1 & T18.2: Initialize nudge system
-initNudgeSystem();
+// T19.1: Ignored domains (localhost, development environments)
+const IGNORED_DOMAINS = [
+  'localhost',
+  '127.0.0.1',
+  '0.0.0.0',
+];
+
+/**
+ * Check if current domain should be ignored
+ */
+function shouldIgnoreCurrentDomain(): boolean {
+  const hostname = window.location.hostname;
+  const host = window.location.host; // includes port
+  
+  return IGNORED_DOMAINS.some(ignored => 
+    hostname === ignored || 
+    host.includes(ignored) ||
+    hostname.includes(ignored)
+  );
+}
+
+// Check if we should ignore this domain
+const shouldIgnore = shouldIgnoreCurrentDomain();
+if (shouldIgnore) {
+  console.log('[Content] Ignoring domain:', window.location.host);
+  // Still log to page but don't capture events
+}
+
+// T18.1 & T18.2: Initialize nudge system (only if not ignored)
+if (!shouldIgnore) {
+  initNudgeSystem();
+}
 
 // Check if extension is enabled
 let isEnabled = true;
@@ -71,6 +101,7 @@ chrome.runtime.sendMessage({ type: 'GET_STATUS' }, (response) => {
  */
 function captureEvent(eventData: any) {
   if (!isEnabled) return;
+  if (shouldIgnore) return; // T19.1: Don't capture events from ignored domains
   
   // Generate unique ID for this event
   const eventId = generateEventId(eventData.type);

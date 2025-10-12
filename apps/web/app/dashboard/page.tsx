@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { TimelineChart } from '@/components/TimelineChart';
 import TemplateSuggestions from '@/components/TemplateSuggestions';
+import AutomationSuggestions from '@/components/AutomationSuggestions';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -176,6 +177,9 @@ export default function DashboardPage() {
 
           {/* Template Suggestions */}
           <TemplateSuggestions />
+
+          {/* T19: Automation Suggestions */}
+          <AutomationSuggestions />
 
           <div className="pt-4">
             <h3 className="text-2xl font-bold tracking-tight">Activity Feed</h3>
