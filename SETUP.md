@@ -1964,10 +1964,215 @@ SELECT cron.unschedule('nightly-pattern-mining');
 - **Scalable**: Processes multiple users in parallel
 - **Two Options**: Choose between Edge Function or SQL-only approach
 
+---
+
+## T17.2: Semantic Pattern Clustering
+
+### Overview
+
+**Goal**: Cluster semantically similar patterns using embedding distance. Group different surface actions that achieve the same goal.
+
+This task adds intelligent clustering to find patterns that are semantically similar even if they have different exact sequences. For example, "checkout on Amazon" and "checkout on eBay" would be clustered together even though the exact URLs and elements differ.
+
+### What It Does
+
+1. **Embedding-Based Clustering**: Uses event embeddings to calculate semantic similarity between patterns
+2. **Cross-Pattern Similarity**: Compares average embeddings of events in each pattern
+3. **Cluster Assignment**: Groups patterns with similarity above threshold (default 0.75)
+4. **Automated Scheduling**: Runs weekly (Mondays 4 AM UTC) after temporal pattern mining
+
+### Migration
+
+Apply the migration:
+
+```bash
+cd /Users/ommistry/observe_and_create/infra/supabase
+supabase db reset  # or push individual migration
+```
+
+Or manually via Supabase SQL Editor, run the full contents of:
+```
+/Users/ommistry/observe_and_create/infra/supabase/supabase/migrations/20240101000007_semantic_pattern_clustering.sql
+```
+
+### Functions Created
+
+1. **cluster_patterns_by_event_similarity(user_id, threshold)**
+   - Main clustering function
+   - Uses average event embeddings for similarity
+   - Default threshold: 0.75 (75% similarity)
+   - Returns: clusters_created, patterns_updated
+
+2. **cluster_patterns_by_event_similarity()** (no params)
+   - Convenience wrapper
+   - Clusters all users' patterns
+
+3. **cluster_semantic_patterns(user_id, threshold, min_size)**
+   - Advanced clustering with configurable cluster size
+   - Minimum cluster size filter (default: 2)
+
+### Testing
+
+Test the clustering function manually:
+
+```sql
+-- Cluster patterns for all users
+SELECT * FROM cluster_patterns_by_event_similarity();
+```
+
+Expected output:
+```
+clusters_created | patterns_updated
+-----------------|------------------
+5                | 12
+```
+
+**Check cluster results**:
+
+```sql
+-- View patterns with their cluster assignments
+SELECT 
+  semantic_cluster_id,
+  COUNT(*) as pattern_count,
+  AVG(support) as avg_support,
+  jsonb_array_length(sequence) as seq_length
+FROM patterns
+WHERE semantic_cluster_id IS NOT NULL
+GROUP BY semantic_cluster_id, jsonb_array_length(sequence)
+ORDER BY pattern_count DESC;
+```
+
+**View cluster statistics using the view**:
+
+```sql
+SELECT * FROM pattern_cluster_stats ORDER BY pattern_count DESC LIMIT 10;
+```
+
+Example output:
+```
+user_id    | semantic_cluster_id | pattern_count | avg_support | patterns
+-----------|---------------------|---------------|-------------|----------
+444fb...   | sem_444fb..._0      | 3             | 8.67        | [...]
+444fb...   | sem_444fb..._1      | 2             | 5.50        | [...]
+```
+
+### Cluster Format
+
+Each cluster is identified by a unique `semantic_cluster_id`:
+- Format: `sem_{user_id}_{counter}`
+- Example: `sem_444fb749-c6d0-4d35-85b1-0e2cc247dc94_0`
+
+**Patterns in same cluster**:
+- Have semantically similar event sequences
+- May have different exact URLs or domains
+- Represent the same user workflow/intent
+
+### Scheduled Job
+
+**Cron schedule**: `0 4 * * 1` (Every Monday at 4 AM UTC)
+
+Verify the cron job:
+
+```sql
+SELECT * FROM cron.job WHERE jobname = 'weekly-semantic-clustering';
+```
+
+Check execution history:
+
+```sql
+SELECT * FROM cron.job_run_details
+WHERE jobid = (SELECT jobid FROM cron.job WHERE jobname = 'weekly-semantic-clustering')
+ORDER BY start_time DESC
+LIMIT 5;
+```
+
+### Monitoring
+
+1. **Total clusters per user**:
+   ```sql
+   SELECT 
+     user_id,
+     COUNT(DISTINCT semantic_cluster_id) as cluster_count,
+     COUNT(*) as total_patterns
+   FROM patterns
+   WHERE semantic_cluster_id IS NOT NULL
+   GROUP BY user_id;
+   ```
+
+2. **Cluster size distribution**:
+   ```sql
+   SELECT 
+     COUNT(*) as patterns_in_cluster,
+     COUNT(*) as num_clusters
+   FROM (
+     SELECT semantic_cluster_id, COUNT(*) as cnt
+     FROM patterns
+     WHERE semantic_cluster_id IS NOT NULL
+     GROUP BY semantic_cluster_id
+   ) clusters
+   GROUP BY patterns_in_cluster
+   ORDER BY patterns_in_cluster;
+   ```
+
+3. **Patterns without clusters**:
+   ```sql
+   SELECT COUNT(*) as unclustered_patterns
+   FROM patterns
+   WHERE semantic_cluster_id IS NULL
+     AND pattern_type IN ('frequency', 'temporal');
+   ```
+
+### Manual Clustering
+
+Run clustering for a specific user:
+
+```sql
+-- Cluster patterns for one user with custom threshold
+SELECT * FROM cluster_patterns_by_event_similarity(
+  '444fb749-c6d0-4d35-85b1-0e2cc247dc94'::uuid,
+  0.70  -- 70% similarity threshold
+);
+```
+
+Run clustering with advanced options:
+
+```sql
+-- Cluster with minimum cluster size
+SELECT * FROM cluster_semantic_patterns(
+  '444fb749-c6d0-4d35-85b1-0e2cc247dc94'::uuid,
+  0.75,  -- similarity threshold
+  2      -- minimum cluster size
+);
+```
+
+### Unscheduling
+
+Disable the weekly clustering job:
+
+```sql
+SELECT cron.unschedule('weekly-semantic-clustering');
+```
+
+### Benefits
+
+- **Semantic Understanding**: Groups workflows by meaning, not just exact matches
+- **Cross-Domain Patterns**: Identifies similar workflows across different websites
+- **Better Automation**: Create automations that work across similar sites
+- **Reduced Noise**: Consolidates similar patterns into meaningful clusters
+- **Scalable**: Runs weekly to process all new patterns
+
+### Use Cases
+
+1. **E-commerce Checkout**: Group checkout flows from different retailers
+2. **Form Filling**: Cluster similar form submission patterns
+3. **Search Workflows**: Group search behaviors across platforms
+4. **Content Creation**: Identify similar creation workflows (docs, sheets, emails)
+5. **Research Patterns**: Cluster information gathering behaviors
+
 ### Next Steps
 
-After T17, you can:
-- **T18**: Add semantic clustering to group similar patterns
-- **T19**: Build UI to view and manage discovered patterns
-- **T20**: Create automations from discovered patterns
-- **T21**: Add temporal analysis (time-of-day patterns)
+After T17.2, you can:
+- **T18**: Add real-time pattern detection in the extension
+- **T19**: Build UI to view clustered patterns
+- **T20**: Create automations that work across cluster members
+- **T21**: Add friction point detection using cluster insights
