@@ -5,9 +5,15 @@
  * Runs in isolated context with access to page DOM
  */
 
+import { addEventAndDetect, getDetectedPatterns } from './patternDetector';
+import { initNudgeSystem, queueNudge, type Nudge } from './nudgeManager';
+
 // Log to both extension console and page console
 console.log('[Content] Script loaded on:', window.location.href);
 window.postMessage({ type: 'EXTENSION_LOG', message: `[Content] Script loaded on: ${window.location.href}` }, '*');
+
+// T18.1 & T18.2: Initialize nudge system
+initNudgeSystem();
 
 // Check if extension is enabled
 let isEnabled = true;
@@ -84,6 +90,69 @@ function captureEvent(eventData: any) {
   
   // Add current event to context for next event
   addToContext(eventId, eventData.type, timestamp);
+  
+  // T18: Real-time pattern detection
+  const detectedPattern = addEventAndDetect(event);
+  if (detectedPattern) {
+    const patternMsg = `[PatternDetector] 🎯 Pattern detected! ${detectedPattern.sequence.map(e => e.type).join(' → ')} (${detectedPattern.occurrences}x, confidence: ${detectedPattern.confidence})`;
+    console.log(patternMsg);
+    window.postMessage({ type: 'EXTENSION_LOG', message: patternMsg }, '*');
+    
+    // Notify background about detected pattern
+    chrome.runtime.sendMessage({
+      type: 'PATTERN_DETECTED',
+      pattern: detectedPattern,
+    });
+    
+    // T18.1: Show nudge for detected pattern
+    const nudge: Nudge = {
+      id: `pattern-${detectedPattern.sequence.map(e => e.type).join('-')}-${Date.now()}`,
+      type: 'pattern_detected',
+      title: '🎯 Pattern Detected',
+      message: `I noticed you often do: ${detectedPattern.sequence.map(e => e.type).join(' → ')}. Would you like to automate this?`,
+      actionLabel: 'Create Automation',
+      actionUrl: `http://localhost:3000/dashboard?pattern=${encodeURIComponent(JSON.stringify(detectedPattern.sequence))}`,
+      metadata: detectedPattern,
+    };
+    queueNudge(nudge);
+  }
+  
+  // T18.1: Detect high-friction events and show nudges
+  if (eventData.type === 'friction' && eventData.frictionType) {
+    let nudgeMessage = '';
+    let nudgeTitle = '💡 Need Help?';
+    
+    switch (eventData.frictionType) {
+      case 'rage_click':
+        nudgeMessage = `I noticed you're clicking repeatedly on this element. I can help automate this interaction.`;
+        break;
+      case 'rapid_scroll':
+        nudgeMessage = `You seem to be scrolling quickly looking for something. Want to set up automated navigation?`;
+        break;
+      case 'form_abandon':
+        nudgeMessage = `Form abandoned? I can help you auto-fill this form in the future.`;
+        break;
+      case 'back_button':
+        nudgeMessage = `Going back frequently? I can help you skip unnecessary steps.`;
+        break;
+      case 'slow_load':
+        nudgeMessage = `This page is loading slowly. I can help you work more efficiently.`;
+        break;
+    }
+    
+    if (nudgeMessage) {
+      const frictionNudge: Nudge = {
+        id: `friction-${eventData.frictionType}-${Date.now()}`,
+        type: 'high_friction',
+        title: nudgeTitle,
+        message: nudgeMessage,
+        actionLabel: 'Get Help',
+        actionUrl: `http://localhost:3000/dashboard?friction=${eventData.frictionType}`,
+        metadata: { frictionType: eventData.frictionType },
+      };
+      queueNudge(frictionNudge);
+    }
+  }
   
   // Log event capture to page console
   const eventMsg = `[Content] Event captured: ${eventData.type} on ${eventData.tagName || 'element'} (context: ${context.length} events)`;

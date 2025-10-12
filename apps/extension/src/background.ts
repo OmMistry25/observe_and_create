@@ -73,6 +73,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ received: true });
       break;
       
+    case 'PATTERN_DETECTED':
+      // T18: Real-time pattern detected
+      console.log('[Background] 🎯 Pattern detected in real-time:', message.pattern);
+      console.log('[Background] Sequence:', message.pattern.sequence.map((e: any) => e.type).join(' → '));
+      console.log('[Background] Occurrences:', message.pattern.occurrences);
+      console.log('[Background] Confidence:', message.pattern.confidence);
+      sendResponse({ acknowledged: true });
+      break;
+      
+    case 'NUDGE_ACTION':
+      // T18.1: User clicked on a nudge action
+      console.log('[Background] Nudge action clicked:', message.nudge.type);
+      // Could track this in analytics or sync to server
+      sendResponse({ acknowledged: true });
+      break;
+      
     default:
       console.warn('[Background] Unknown message type:', message.type);
       sendResponse({ error: 'Unknown message type' });

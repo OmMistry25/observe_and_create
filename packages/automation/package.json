@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@observe-create/schemas": "workspace:*",
+    "@supabase/supabase-js": "^2.39.3",
     "zod": "^3.23.0"
   },
   "devDependencies": {

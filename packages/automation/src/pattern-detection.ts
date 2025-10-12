@@ -247,6 +247,7 @@ function calculateConfidence(sequence: Event[], allEvents: Event[]): number {
 
 /**
  * Store detected patterns in database
+ * Uses upsert to update existing patterns or insert new ones
  */
 export async function storePatterns(
   supabase: SupabaseClient,
@@ -264,9 +265,14 @@ export async function storePatterns(
     last_seen: new Date().toISOString(),
   }));
 
+  // Use upsert to handle existing patterns
+  // onConflict specifies the unique constraint column(s)
   const { data, error } = await supabase
     .from('patterns')
-    .insert(patternsToInsert)
+    .upsert(patternsToInsert, {
+      onConflict: 'user_id,sequence',
+      ignoreDuplicates: false, // Update existing records
+    })
     .select('id');
 
   if (error) {
