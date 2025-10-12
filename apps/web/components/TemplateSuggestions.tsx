@@ -42,11 +42,8 @@ export default function TemplateSuggestions() {
       setError(null);
 
       // Get session for auth
-      const { createBrowserClient } = await import('@supabase/ssr');
-      const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      );
+      const { createBrowserClient } = await import('@/lib/supabase-client');
+      const supabase = createBrowserClient();
 
       const { data: { session } } = await supabase.auth.getSession();
 

@@ -1031,9 +1031,210 @@ Each template includes:
 
 ### Next Steps
 
-- **T17**: Enhanced pattern mining with temporal analysis
+- **T17**: Nightly pattern mining with pg_cron
 - **T18**: Semantic clustering of similar events
 - **T19**: Automation creation UI
+
+---
+
+## T17: Miner v0 (Frequency)
+
+The system now includes a nightly job to automatically mine frequent patterns from user activity.
+
+### What Changed
+
+✅ **Pattern Miner Edge Function** (`infra/supabase/supabase/functions/pattern-miner/index.ts`)
+- Supabase Edge Function for pattern mining
+- Groups events by contiguous domain sequences
+- Mines 3-5 step patterns with support threshold (3+ occurrences)
+- Stores patterns in `patterns` table with support and confidence scores
+
+✅ **Cron Job Setup** (`infra/supabase/supabase/migrations/20240101000005_pattern_miner_cron.sql`)
+- Enables `pg_cron` extension
+- Creates `invoke_pattern_miner()` function
+- Creates `mine_patterns_sql()` function (SQL-only alternative)
+- Schedules nightly job at 2 AM UTC
+
+### How It Works
+
+1. **Nightly Execution**:
+   - Cron job triggers at 2 AM UTC every day
+   - Processes all users with events in the last 7 days
+
+2. **Pattern Mining**:
+   - Groups events by contiguous sequences on same domain
+   - Extracts patterns of length 3-5 steps
+   - Counts frequency (support) for each pattern
+   - Calculates confidence (frequency / total sequences)
+
+3. **Pattern Storage**:
+   - Stores patterns in `patterns` table
+   - Upserts on conflict (updates support/confidence if pattern exists)
+   - Tracks `last_seen` timestamp for pattern freshness
+
+### Applying the Migration
+
+1. **Run the migration**:
+   ```bash
+   # In Supabase Dashboard
+   # Go to SQL Editor
+   # Paste contents of 20240101000005_pattern_miner_cron.sql
+   # Click "Run"
+   ```
+
+2. **Deploy the Edge Function** (Optional - for HTTP-based mining):
+   ```bash
+   cd infra/supabase
+   supabase functions deploy pattern-miner
+   ```
+
+3. **Verify cron job**:
+   ```sql
+   SELECT * FROM cron.job WHERE jobname LIKE '%pattern%';
+   ```
+
+   Expected output:
+   ```
+   jobid | schedule   | command                        | nodename
+   ------|------------|--------------------------------|----------
+   1     | 0 2 * * *  | SELECT mine_patterns_sql()    | localhost
+   ```
+
+### Manual Testing
+
+You can manually trigger pattern mining without waiting for the cron job:
+
+1. **Using SQL function** (recommended):
+   ```sql
+   -- Mine patterns for all users
+   SELECT * FROM mine_patterns_sql();
+
+   -- Mine patterns for a specific user
+   SELECT * FROM mine_patterns_sql('YOUR_USER_ID'::UUID);
+
+   -- Custom parameters
+   SELECT * FROM mine_patterns_sql(
+     NULL,  -- user_id (NULL for all users)
+     3,     -- min_support (minimum occurrences)
+     7      -- lookback_days (days of history to analyze)
+   );
+   ```
+
+2. **Using Edge Function**:
+   ```bash
+   curl -X POST \
+     https://YOUR_PROJECT_REF.supabase.co/functions/v1/pattern-miner \
+     -H "Authorization: Bearer YOUR_SERVICE_ROLE_KEY" \
+     -H "Content-Type: application/json"
+   ```
+
+3. **Via API endpoint** (create in web app):
+   ```typescript
+   // In apps/web/app/api/patterns/mine-cron/route.ts
+   export async function POST() {
+     const supabase = createClient(
+       process.env.NEXT_PUBLIC_SUPABASE_URL!,
+       process.env.SUPABASE_SERVICE_ROLE_KEY!
+     );
+     
+     const { data, error } = await supabase.rpc('mine_patterns_sql');
+     
+     if (error) {
+       return NextResponse.json({ error: error.message }, { status: 500 });
+     }
+     
+     return NextResponse.json({ success: true, result: data });
+   }
+   ```
+
+### Example Patterns
+
+After mining, you'll see patterns like:
+
+```sql
+SELECT 
+  pattern_sequence,
+  support,
+  confidence,
+  last_seen
+FROM patterns
+WHERE user_id = 'YOUR_USER_ID'
+ORDER BY support DESC
+LIMIT 5;
+```
+
+Example output:
+```
+pattern_sequence                              | support | confidence | last_seen
+----------------------------------------------|---------|------------|-------------------
+{click:github.com, nav:github.com, click}     | 15      | 0.125      | 2025-10-12 02:00:00
+{search:google.com, click, nav}               | 12      | 0.100      | 2025-10-12 02:00:00
+{click:chatgpt.com, click, click, click}      | 8       | 0.067      | 2025-10-12 02:00:00
+```
+
+### Pattern Format
+
+Each pattern is stored as an array of strings:
+- Format: `{type}:{domain}`
+- Example: `["click:github.com", "nav:github.com", "click:readme"]`
+
+**Support**: Number of times the pattern appears  
+**Confidence**: Probability of the pattern (support / total sequences)  
+**Frequency**: Cumulative count across all mining runs
+
+### Monitoring
+
+1. **Check cron job status**:
+   ```sql
+   SELECT * FROM cron.job_run_details
+   WHERE jobid = (SELECT jobid FROM cron.job WHERE jobname = 'nightly-pattern-mining-sql')
+   ORDER BY start_time DESC
+   LIMIT 5;
+   ```
+
+2. **View recent patterns**:
+   ```sql
+   SELECT user_id, COUNT(*) as pattern_count, MAX(last_seen) as last_mined
+   FROM patterns
+   GROUP BY user_id
+   ORDER BY last_mined DESC;
+   ```
+
+3. **Pattern statistics**:
+   ```sql
+   SELECT 
+     COUNT(*) as total_patterns,
+     AVG(support) as avg_support,
+     MAX(support) as max_support,
+     COUNT(DISTINCT user_id) as users_with_patterns
+   FROM patterns;
+   ```
+
+### Unscheduling the Job
+
+If you need to disable the nightly mining:
+
+```sql
+-- Unschedule the SQL-based miner
+SELECT cron.unschedule('nightly-pattern-mining-sql');
+
+-- Unschedule the edge function miner (if deployed)
+SELECT cron.unschedule('nightly-pattern-mining');
+```
+
+### Benefits
+
+- **Automated Discovery**: Patterns are discovered automatically every night
+- **Historical Analysis**: Analyzes last 7 days of activity
+- **Fresh Data**: Patterns are updated daily with new occurrences
+- **Scalable**: Processes multiple users in parallel
+- **Two Options**: Choose between Edge Function or SQL-only approach
+
+### Next Steps
+
+- **T18**: Semantic clustering for similar workflows
+- **T19**: Automation creation UI based on detected patterns
+- **T20**: Pattern visualization dashboard
 
 ---
 
@@ -1572,3 +1773,201 @@ Enhanced upload transport with batch size control and 413 error handling.
 - **Efficient**: Splits only when necessary
 - **Observable**: Clear console logs for debugging
 - **Safe**: Falls back to offline queue on persistent errors
+
+---
+
+## T17: Miner v0 (Frequency)
+
+The system now includes a nightly job to automatically mine frequent patterns from user activity.
+
+### What Changed
+
+✅ **Pattern Miner Edge Function** (`infra/supabase/supabase/functions/pattern-miner/index.ts`)
+- Supabase Edge Function for pattern mining
+- Groups events by contiguous domain sequences
+- Mines 3-5 step patterns with support threshold (3+ occurrences)
+- Stores patterns in `patterns` table with support and confidence scores
+
+✅ **Cron Job Setup** (`infra/supabase/supabase/migrations/20240101000005_pattern_miner_cron.sql`)
+- Enables `pg_cron` extension
+- Creates `invoke_pattern_miner()` function
+- Creates `mine_patterns_sql()` function (SQL-only alternative)
+- Schedules nightly job at 2 AM UTC
+- Cleans up duplicate patterns before adding unique constraint
+
+### How It Works
+
+1. **Nightly Execution**:
+   - Cron job triggers at 2 AM UTC every day
+   - Processes all users with events in the last 7 days
+
+2. **Pattern Mining**:
+   - Groups events by contiguous sequences on same domain
+   - Extracts patterns of length 3-5 steps
+   - Counts frequency (support) for each pattern
+   - Calculates confidence (frequency / total sequences)
+
+3. **Pattern Storage**:
+   - Stores patterns in `patterns` table
+   - Upserts on conflict (updates support/confidence if pattern exists)
+   - Tracks `last_seen` timestamp for pattern freshness
+
+### Applying the Migration
+
+1. **Run the migration**:
+   ```bash
+   # In Supabase Dashboard
+   # Go to SQL Editor
+   # Paste contents of 20240101000005_pattern_miner_cron.sql
+   # Click "Run"
+   ```
+
+2. **Verify cron job**:
+   ```sql
+   SELECT * FROM cron.job WHERE jobname LIKE '%pattern%';
+   ```
+
+   Expected output:
+   ```
+   jobid | schedule   | command                        | nodename
+   ------|------------|--------------------------------|----------
+   1     | 0 2 * * *  | SELECT mine_patterns_sql()    | localhost
+   ```
+
+### Manual Testing
+
+You can manually trigger pattern mining without waiting for the cron job:
+
+1. **Using SQL function** (recommended):
+   ```sql
+   -- Mine patterns for all users
+   SELECT * FROM mine_patterns_sql();
+
+   -- Mine patterns for a specific user
+   SELECT * FROM mine_patterns_sql('YOUR_USER_ID'::UUID);
+
+   -- Custom parameters
+   SELECT * FROM mine_patterns_sql(
+     NULL,  -- user_id (NULL for all users)
+     3,     -- min_support (minimum occurrences)
+     7      -- lookback_days (days of history to analyze)
+   );
+   ```
+
+2. **Using Edge Function**:
+   ```bash
+   curl -X POST \
+     https://YOUR_PROJECT_REF.supabase.co/functions/v1/pattern-miner \
+     -H "Authorization: Bearer YOUR_SERVICE_ROLE_KEY" \
+     -H "Content-Type: application/json"
+   ```
+
+3. **Via API endpoint** (create in web app):
+   ```typescript
+   // In apps/web/app/api/patterns/mine-cron/route.ts
+   export async function POST() {
+     const supabase = createClient(
+       process.env.NEXT_PUBLIC_SUPABASE_URL!,
+       process.env.SUPABASE_SERVICE_ROLE_KEY!
+     );
+     
+     const { data, error } = await supabase.rpc('mine_patterns_sql');
+     
+     if (error) {
+       return NextResponse.json({ error: error.message }, { status: 500 });
+     }
+     
+     return NextResponse.json({ success: true, result: data });
+   }
+   ```
+
+### Example Patterns
+
+After mining, you'll see patterns like:
+
+```sql
+SELECT 
+  sequence,
+  support,
+  confidence,
+  last_seen
+FROM patterns
+WHERE user_id = 'YOUR_USER_ID'
+ORDER BY support DESC
+LIMIT 5;
+```
+
+Example output:
+```
+sequence                                      | support | confidence | last_seen
+----------------------------------------------|---------|------------|-------------------
+[{"type":"click","url":"github.com"}...]      | 15      | 0.125      | 2025-10-12 02:00:00
+[{"type":"search","url":"google.com"}...]     | 12      | 0.100      | 2025-10-12 02:00:00
+[{"type":"click","url":"chatgpt.com"}...]     | 8       | 0.067      | 2025-10-12 02:00:00
+```
+
+### Pattern Format
+
+Each pattern is stored as JSONB array containing event objects:
+- Format: Array of event objects with `id`, `ts`, `url`, `type`, `user_id`, etc.
+- Example: `[{"id": "...", "type": "click", "url": "https://..."}]`
+
+**Support**: Number of times the pattern appears  
+**Confidence**: Probability of the pattern (support / total sequences)  
+**Pattern Type**: 'frequency' for T17 miner
+
+### Monitoring
+
+1. **Check cron job status**:
+   ```sql
+   SELECT * FROM cron.job_run_details
+   WHERE jobid = (SELECT jobid FROM cron.job WHERE jobname = 'nightly-pattern-mining-sql')
+   ORDER BY start_time DESC
+   LIMIT 5;
+   ```
+
+2. **View recent patterns**:
+   ```sql
+   SELECT user_id, COUNT(*) as pattern_count, MAX(last_seen) as last_mined
+   FROM patterns
+   GROUP BY user_id
+   ORDER BY last_mined DESC;
+   ```
+
+3. **Pattern statistics**:
+   ```sql
+   SELECT 
+     COUNT(*) as total_patterns,
+     AVG(support) as avg_support,
+     MAX(support) as max_support,
+     COUNT(DISTINCT user_id) as users_with_patterns
+   FROM patterns;
+   ```
+
+### Unscheduling the Job
+
+If you need to disable the nightly mining:
+
+```sql
+-- Unschedule the SQL-based miner
+SELECT cron.unschedule('nightly-pattern-mining-sql');
+
+-- Unschedule the edge function miner (if deployed)
+SELECT cron.unschedule('nightly-pattern-mining');
+```
+
+### Benefits
+
+- **Automated Discovery**: Patterns are discovered automatically every night
+- **Historical Analysis**: Analyzes last 7 days of activity
+- **Fresh Data**: Patterns are updated daily with new occurrences
+- **Scalable**: Processes multiple users in parallel
+- **Two Options**: Choose between Edge Function or SQL-only approach
+
+### Next Steps
+
+After T17, you can:
+- **T18**: Add semantic clustering to group similar patterns
+- **T19**: Build UI to view and manage discovered patterns
+- **T20**: Create automations from discovered patterns
+- **T21**: Add temporal analysis (time-of-day patterns)

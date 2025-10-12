@@ -72,9 +72,9 @@ export async function GET(request: NextRequest) {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - days);
 
-    const { data: events, error: eventsError } = await supabase
+    const { data: rawEvents, error: eventsError } = await supabase
       .from('events')
-      .select('id, type, domain, url, text, meta, ts')
+      .select('id, type, url, text, meta, ts, dom_path')
       .eq('user_id', user.id)
       .gte('ts', cutoffDate.toISOString())
       .order('ts', { ascending: true })
@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
     }
 
     // If user has no events, return empty suggestions
-    if (!events || events.length === 0) {
+    if (!rawEvents || rawEvents.length === 0) {
       return NextResponse.json({
         suggestions: [],
         user_age_in_days: userAgeInDays,
@@ -97,6 +97,30 @@ export async function GET(request: NextRequest) {
         message: 'No activity yet. Start browsing to get automation suggestions!',
       });
     }
+
+    // Transform events: extract domain from URL and map to expected format
+    const events = rawEvents.map(event => {
+      let domain = '';
+      try {
+        if (event.url) {
+          const urlObj = new URL(event.url);
+          domain = urlObj.hostname;
+        }
+      } catch (e) {
+        // Invalid URL, leave domain empty
+      }
+
+      return {
+        id: event.id,
+        type: event.type,
+        domain,
+        url: event.url,
+        text: event.text || '',
+        tagName: event.meta?.tagName || '',
+        meta: event.meta || {},
+        ts: new Date(event.ts).getTime(),
+      };
+    });
 
     // Get all active templates
     const { data: templates, error: templatesError } = await supabase
