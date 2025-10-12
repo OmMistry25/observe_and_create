@@ -2169,10 +2169,182 @@ SELECT cron.unschedule('weekly-semantic-clustering');
 4. **Content Creation**: Identify similar creation workflows (docs, sheets, emails)
 5. **Research Patterns**: Cluster information gathering behaviors
 
+---
+
+## T17.3: Friction Point Detection
+
+### Overview
+
+**Goal**: Analyze `interaction_quality` table to find high-friction workflows and suggest automations specifically for struggle points.
+
+This task identifies where users experience the most friction and prioritizes those workflows for automation to reduce struggle.
+
+### What It Does
+
+1. **Friction Detection**: Analyzes events with high friction scores (≥0.6)
+2. **Pattern Analysis**: Finds patterns that contain high-friction events
+3. **Automation Prioritization**: Flags patterns that should be automated to reduce friction
+4. **Dashboard Views**: Provides insights into friction points across workflows
+
+### Migration
+
+Apply the migration:
+
+```bash
+cd /Users/ommistry/observe_and_create/infra/supabase
+supabase db reset  # or push individual migration
+```
+
+Or manually via Supabase SQL Editor, run the full contents of:
+```
+/Users/ommistry/observe_and_create/infra/supabase/supabase/migrations/20240101000008_friction_point_detection.sql
+```
+
+### Functions Created
+
+1. **detect_friction_points(user_id, threshold, lookback_days, limit)**
+   - Finds URLs/event types with high friction
+   - Groups by URL and event type
+   - Returns friction count, avg score, struggle signals
+   - Default threshold: 0.6, lookback: 30 days
+
+2. **detect_friction_points()** (no params)
+   - Convenience wrapper for all users
+
+3. **find_high_friction_patterns(user_id, threshold, lookback_days)**
+   - Finds patterns containing high-friction events
+   - Flags patterns that should be automated
+   - Returns automation recommendations
+
+### Views Created
+
+1. **friction_dashboard**
+   - Shows friction points by URL and event type
+   - Includes friction rate percentage
+   - Lists common struggle signals
+   - Minimum 3 high-friction events required
+
+2. **automation_suggestions_with_friction**
+   - Combines patterns with friction analysis
+   - Adds `reduce_friction` flag
+   - Includes suggestion priority (high/medium/low)
+   - Ready-to-use suggestion payload
+
+### Testing
+
+Test friction detection:
+
+```sql
+-- Detect friction points for all users
+SELECT * FROM detect_friction_points();
+```
+
+Expected output:
+```
+user_id    | url                  | event_type | friction_count | avg_friction_score | struggle_signals
+-----------|----------------------|------------|----------------|--------------------|-----------------
+444fb...   | https://example.com  | click      | 5              | 0.75               | {back_button, slow_load}
+```
+
+**View friction dashboard**:
+
+```sql
+SELECT * FROM friction_dashboard LIMIT 10;
+```
+
+**Find high-friction patterns**:
+
+```sql
+SELECT * FROM find_high_friction_patterns();
+```
+
+**View automation suggestions with friction flags**:
+
+```sql
+SELECT 
+  pattern_id,
+  suggestion_priority,
+  reduce_friction_flag,
+  avg_friction_score,
+  support
+FROM automation_suggestions_with_friction
+WHERE reduce_friction_flag = true
+ORDER BY suggestion_priority, support DESC
+LIMIT 10;
+```
+
+### Friction Score Thresholds
+
+- **0.7+**: High friction - immediate automation candidate
+- **0.6-0.7**: Medium friction - automate if support ≥10
+- **0.5-0.6**: Low friction - monitor
+
+### Automation Prioritization
+
+Patterns are prioritized for automation based on:
+
+1. **High Priority**: friction ≥0.7 AND support ≥5
+2. **Medium Priority**: 
+   - friction ≥0.6 AND support ≥10, OR
+   - confidence ≥0.8 AND support ≥15
+3. **Low Priority**: All others
+
+### Use Cases
+
+1. **Identify Struggle Points**: Find where users repeatedly struggle
+2. **Prioritize Automation**: Focus on high-friction workflows first
+3. **Measure Impact**: Track friction reduction after automation
+4. **User Experience**: Proactively suggest help for difficult tasks
+
+### Dashboard Integration
+
+The views are designed to power dashboard widgets:
+
+**Friction Heatmap**:
+```sql
+SELECT 
+  url,
+  event_type,
+  high_friction_events,
+  friction_rate_pct,
+  common_struggles
+FROM friction_dashboard
+ORDER BY friction_rate_pct DESC
+LIMIT 20;
+```
+
+**Top Automation Opportunities**:
+```sql
+SELECT 
+  suggestion_payload->>'name' as automation_name,
+  suggestion_payload->>'description' as description,
+  suggestion_priority,
+  avg_friction_score,
+  support
+FROM automation_suggestions_with_friction
+WHERE reduce_friction_flag = true
+ORDER BY 
+  CASE suggestion_priority
+    WHEN 'high' THEN 1
+    WHEN 'medium' THEN 2
+    ELSE 3
+  END,
+  support DESC
+LIMIT 10;
+```
+
+### Benefits
+
+- **Proactive Assistance**: Identify and reduce user struggles automatically
+- **Prioritized Automation**: Focus on workflows that cause the most friction
+- **Data-Driven**: Uses actual friction metrics from user interactions
+- **Reduce Churn**: Help users succeed at difficult tasks
+- **Measure Success**: Track friction reduction over time
+
 ### Next Steps
 
-After T17.2, you can:
+After T17.3, you can:
 - **T18**: Add real-time pattern detection in the extension
-- **T19**: Build UI to view clustered patterns
-- **T20**: Create automations that work across cluster members
-- **T21**: Add friction point detection using cluster insights
+- **T19**: Build friction heatmap UI component
+- **T20**: Create automations with "reduce friction" priority
+- **T21**: Add friction-reduction analytics dashboard
