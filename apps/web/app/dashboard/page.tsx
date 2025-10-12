@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { TimelineChart } from '@/components/TimelineChart';
+import TemplateSuggestions from '@/components/TemplateSuggestions';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -172,6 +173,9 @@ export default function DashboardPage() {
 
           {/* Timeline Chart */}
           <TimelineChart hours={24} />
+
+          {/* Template Suggestions */}
+          <TemplateSuggestions />
 
           <div className="pt-4">
             <h3 className="text-2xl font-bold tracking-tight">Activity Feed</h3>

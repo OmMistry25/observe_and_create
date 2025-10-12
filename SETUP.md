@@ -1031,9 +1031,152 @@ Each template includes:
 
 ### Next Steps
 
-- **T16.1**: Template matching algorithm using embedding similarity
 - **T17**: Enhanced pattern mining with temporal analysis
 - **T18**: Semantic clustering of similar events
+- **T19**: Automation creation UI
+
+---
+
+## T16.1: Template Matching
+
+The system now matches user activity against pre-built templates to suggest automations, even for new users with sparse data.
+
+### What Changed
+
+✅ **Template Matching Module** (`packages/automation/src/template-matching.ts`)
+- Fuzzy matching algorithm for event sequences
+- Confidence scoring based on support and coverage
+- Adjusted thresholds for new users (day 1-7)
+- Pattern matching with domain, URL, text, and type filters
+
+✅ **Suggestions API** (`apps/web/app/api/templates/suggestions/route.ts`)
+- GET endpoint to get personalized template suggestions
+- Analyzes user's last 7 days of activity
+- Adjusts confidence thresholds for new users
+- Returns top 5 suggestions by default
+
+✅ **Template Suggestions Component** (`apps/web/components/TemplateSuggestions.tsx`)
+- Displays automation suggestions on dashboard
+- Shows match confidence and category
+- "New User Mode" badge for day 1-7 users
+- Action button to create automations (placeholder)
+
+✅ **Dashboard Integration** (`apps/web/app/dashboard/page.tsx`)
+- Template suggestions appear below timeline chart
+- Updates automatically when dashboard loads
+
+### How It Works
+
+1. **Event Sequence Matching**:
+   - Sliding window approach over user's events
+   - Fuzzy matching: 70% of pattern steps must match
+   - Checks type, domain, URL, text, tagName, dwell time
+
+2. **Confidence Scoring**:
+   - **Support**: How many times pattern appears
+   - **Coverage**: How much of user's activity matches
+   - **Combined**: `(support * 0.7) + (coverage * 0.3)`
+
+3. **New User Adjustments** (Day 1-7):
+   - Day 1-3: 50% lower thresholds
+   - Day 4-7: 70% of normal thresholds
+   - Day 8+: Normal thresholds
+
+4. **Template Categories**:
+   - Color-coded badges (blue, green, yellow, purple, pink, etc.)
+   - Organized by workflow type
+
+### Example Match
+
+**Template**: Email to Spreadsheet
+```typescript
+{
+  sequence: [
+    {type: "click", domain_contains: "mail.google.com"},
+    {type: "click", text_contains: "copy"},
+    {type: "nav", domain_contains: "sheets.google.com"},
+    {type: "click", text_contains: "paste"}
+  ]
+}
+```
+
+**User Events**:
+- 10:00 - click on email (gmail.com)
+- 10:01 - click "Copy" button
+- 10:02 - navigate to sheets.google.com
+- 10:03 - click in cell A1 (paste)
+
+**Result**: 100% match, 4 events, high confidence → **Suggest automation**
+
+### Testing Template Matching
+
+1. **Check templates exist**:
+   ```sql
+   SELECT COUNT(*) FROM pattern_templates WHERE is_active = true;
+   ```
+   Expected: 15 templates
+
+2. **Test API** (from browser console on dashboard):
+   ```javascript
+   const supabase = createBrowserClient();
+   const { data: { session } } = await supabase.auth.getSession();
+   
+   fetch('/api/templates/suggestions?limit=5', {
+     headers: { 'Authorization': `Bearer ${session.access_token}` }
+   }).then(r => r.json()).then(console.log);
+   ```
+
+3. **View on Dashboard**:
+   - Go to `http://localhost:3000/dashboard`
+   - Look for "💡 Automation Suggestions" card
+   - Should appear below timeline chart
+
+4. **Test with sparse data** (new user):
+   - Create a fresh account
+   - Capture 5-10 events using extension
+   - Dashboard should show suggestions with "New User Mode" badge
+   - Confidence thresholds will be adjusted
+
+5. **Check match quality**:
+   - Look at matched_events count
+   - Check confidence percentage
+   - Read match_reason for explanation
+
+### API Response Example
+
+```json
+{
+  "suggestions": [
+    {
+      "template_id": "uuid",
+      "template_name": "Email to Spreadsheet",
+      "category": "data_transfer",
+      "confidence": 0.85,
+      "matched_events": ["event1", "event2", "event3", "event4"],
+      "match_reason": "Found 2 matching sequences (85% confidence)"
+    }
+  ],
+  "user_age_in_days": 3,
+  "events_analyzed": 47,
+  "days_analyzed": 7,
+  "is_new_user": true
+}
+```
+
+### Benefits
+
+- **Cold Start**: New users get suggestions from day 1
+- **Fuzzy Matching**: Works even with imperfect matches
+- **Adaptive**: Adjusts thresholds based on user experience
+- **Personalized**: Based on actual user activity
+- **Actionable**: Shows which events matched the pattern
+- **Transparent**: Displays confidence and match reason
+
+### Next Steps
+
+- **T17**: Nightly pattern mining with frequency analysis
+- **T18**: Semantic clustering for similar workflows
+- **T19**: Create automations from template suggestions
 
 ---
 
