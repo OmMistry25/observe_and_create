@@ -83,6 +83,396 @@ function getEventContext(): string[] {
   return recentEvents.slice(-5).map(e => e.id);
 }
 
+// ============================================================================
+// LEVEL 1: SEMANTIC CONTEXT CAPTURE
+// Enhanced context to understand "why" behind user actions
+// ============================================================================
+
+/**
+ * Session start time for journey tracking
+ */
+const sessionStart = Date.now();
+
+/**
+ * Track previous pages for journey analysis
+ */
+const previousPages: string[] = [];
+const MAX_PREVIOUS_PAGES = 3;
+
+/**
+ * Infer element purpose from its context and attributes
+ */
+function inferElementPurpose(el: HTMLElement): string {
+  const text = (el.textContent || '').toLowerCase().trim();
+  const ariaLabel = (el.getAttribute('aria-label') || '').toLowerCase();
+  const role = el.getAttribute('role') || '';
+  const href = el.getAttribute('href') || '';
+  const className = el.className || '';
+  
+  // Purchase/Transaction signals
+  if (text.includes('buy') || text.includes('add to cart') || 
+      text.includes('checkout') || text.includes('purchase') ||
+      ariaLabel.includes('buy') || ariaLabel.includes('cart') ||
+      className.includes('cart') || className.includes('buy')) {
+    return 'purchase_intent';
+  }
+  
+  // Navigation signals
+  if (el.tagName === 'A' || role === 'link' || role === 'navigation') {
+    if (href.includes('http') && !href.includes(window.location.host)) {
+      return 'external_navigation';
+    }
+    return 'navigation';
+  }
+  
+  // Submission/Action signals
+  if ((el.tagName === 'BUTTON' || role === 'button') && 
+      (text.includes('submit') || text.includes('send') || 
+       text.includes('save') || text.includes('confirm') ||
+       text.includes('apply'))) {
+    return 'form_submission';
+  }
+  
+  // Information seeking
+  if (text.includes('learn more') || text.includes('read more') || 
+      text.includes('details') || text.includes('view') ||
+      text.includes('show') || text.includes('expand') ||
+      ariaLabel.includes('more information')) {
+    return 'information_seeking';
+  }
+  
+  // Comparison/Research
+  if (text.includes('compare') || text.includes('vs') || 
+      text.includes('review') || text.includes('rating')) {
+    return 'comparison_research';
+  }
+  
+  // Social/Communication
+  if (text.includes('share') || text.includes('comment') || 
+      text.includes('reply') || text.includes('message') ||
+      text.includes('post') || text.includes('tweet')) {
+    return 'social_interaction';
+  }
+  
+  // Download
+  if (text.includes('download') || href.includes('.pdf') || 
+      href.includes('.zip') || href.includes('.doc')) {
+    return 'download';
+  }
+  
+  return 'unknown';
+}
+
+/**
+ * Get semantic label for element
+ */
+function getSemanticLabel(el: HTMLElement): string {
+  return el.getAttribute('aria-label') || 
+         el.getAttribute('title') || 
+         el.getAttribute('alt') || 
+         el.textContent?.trim().substring(0, 50) || 
+         '';
+}
+
+/**
+ * Get text near element for context
+ */
+function getNearbyText(el: HTMLElement, maxChars: number = 50): string {
+  const parent = el.parentElement;
+  if (!parent) return '';
+  
+  const siblingTexts: string[] = [];
+  const siblings = Array.from(parent.children);
+  
+  for (const sibling of siblings) {
+    if (sibling !== el && sibling.textContent) {
+      siblingTexts.push(sibling.textContent.trim());
+    }
+  }
+  
+  return siblingTexts.join(' ').substring(0, maxChars);
+}
+
+/**
+ * Estimate visual weight/importance of element
+ */
+function getVisualWeight(el: HTMLElement): number {
+  const computedStyle = window.getComputedStyle(el);
+  let weight = 0.5; // Base weight
+  
+  // Size matters
+  const area = el.offsetWidth * el.offsetHeight;
+  if (area > 10000) weight += 0.2; // Large element
+  if (area < 1000) weight -= 0.2;  // Small element
+  
+  // Position matters (above fold is more important)
+  const rect = el.getBoundingClientRect();
+  if (rect.top < window.innerHeight) weight += 0.1;
+  
+  // Color/contrast
+  const color = computedStyle.color;
+  const bgColor = computedStyle.backgroundColor;
+  if (color && bgColor && color !== bgColor) weight += 0.1;
+  
+  // Font weight/size
+  const fontSize = parseInt(computedStyle.fontSize || '16');
+  if (fontSize > 20) weight += 0.1;
+  
+  return Math.max(0, Math.min(1, weight)); // Clamp 0-1
+}
+
+/**
+ * Determine which section of page element is in
+ */
+function getPageSection(el: HTMLElement): string {
+  let current: HTMLElement | null = el;
+  
+  while (current && current !== document.body) {
+    const tagName = current.tagName.toLowerCase();
+    const role = current.getAttribute('role');
+    
+    if (tagName === 'header' || role === 'banner') return 'header';
+    if (tagName === 'nav' || role === 'navigation') return 'nav';
+    if (tagName === 'main' || role === 'main') return 'main';
+    if (tagName === 'aside' || role === 'complementary') return 'sidebar';
+    if (tagName === 'footer' || role === 'contentinfo') return 'footer';
+    
+    current = current.parentElement;
+  }
+  
+  return 'body';
+}
+
+/**
+ * Infer page type from URL and content
+ */
+function inferPageType(): string {
+  const url = window.location.href.toLowerCase();
+  const title = document.title.toLowerCase();
+  const body = document.body.textContent?.toLowerCase() || '';
+  
+  // Ecommerce/Product
+  if (url.includes('/product/') || url.includes('/item/') ||
+      body.includes('add to cart') || body.includes('price:') ||
+      document.querySelector('[itemprop="price"]')) {
+    return 'product';
+  }
+  
+  // Content/Article
+  if (url.includes('/article/') || url.includes('/blog/') ||
+      url.includes('/post/') || document.querySelector('article') ||
+      title.includes('blog') || title.includes('article')) {
+    return 'article';
+  }
+  
+  // Search results
+  if (url.includes('/search') || url.includes('?q=') || 
+      url.includes('?query=') || url.includes('google.com/search')) {
+    return 'search_results';
+  }
+  
+  // Transaction/Checkout
+  if (url.includes('/cart') || url.includes('/checkout') || 
+      url.includes('/payment') || title.includes('checkout')) {
+    return 'checkout';
+  }
+  
+  // Dashboard/Portal
+  if (url.includes('/dashboard') || url.includes('/home') || 
+      url.includes('/portal') || url.includes('/account') ||
+      title.includes('dashboard')) {
+    return 'dashboard';
+  }
+  
+  // Form/Application
+  if (document.querySelectorAll('form').length > 0) {
+    return 'form';
+  }
+  
+  // Video/Media
+  if (document.querySelector('video') || url.includes('youtube.com/watch') ||
+      url.includes('vimeo.com') || url.includes('twitch.tv')) {
+    return 'video';
+  }
+  
+  // Documentation
+  if (url.includes('/docs/') || url.includes('/documentation/') ||
+      title.includes('documentation') || title.includes('api reference')) {
+    return 'documentation';
+  }
+  
+  // Social media
+  if (url.includes('twitter.com') || url.includes('facebook.com') ||
+      url.includes('linkedin.com') || url.includes('instagram.com')) {
+    return 'social_media';
+  }
+  
+  return 'general';
+}
+
+/**
+ * Extract main heading
+ */
+function getMainHeading(): string {
+  const h1 = document.querySelector('h1');
+  return h1?.textContent?.trim().substring(0, 100) || '';
+}
+
+/**
+ * Infer page category from URL patterns
+ */
+function inferPageCategory(): string {
+  const url = window.location.href.toLowerCase();
+  
+  if (url.includes('github.com') || url.includes('gitlab.com')) return 'development';
+  if (url.includes('stackoverflow.com') || url.includes('reddit.com')) return 'community';
+  if (url.includes('youtube.com') || url.includes('netflix.com')) return 'entertainment';
+  if (url.includes('gmail.com') || url.includes('outlook')) return 'email';
+  if (url.includes('amazon.com') || url.includes('ebay.com')) return 'shopping';
+  if (url.includes('linkedin.com')) return 'professional';
+  if (url.includes('wikipedia.org')) return 'reference';
+  if (url.includes('docs.') || url.includes('/documentation')) return 'documentation';
+  
+  return 'general';
+}
+
+/**
+ * Get page description
+ */
+function getPageDescription(): string {
+  const metaDesc = document.querySelector('meta[name="description"]');
+  if (metaDesc) {
+    return metaDesc.getAttribute('content')?.substring(0, 200) || '';
+  }
+  
+  // Fallback: first paragraph
+  const firstP = document.querySelector('p');
+  return firstP?.textContent?.trim().substring(0, 200) || '';
+}
+
+/**
+ * Extract key entities (brands, products, topics)
+ */
+function extractKeyEntities(): string[] {
+  const entities: Set<string> = new Set();
+  
+  // Extract from title
+  const title = document.title;
+  const titleWords = title.split(/\s+/).filter(w => w.length > 3 && /^[A-Z]/.test(w));
+  titleWords.slice(0, 3).forEach(w => entities.add(w));
+  
+  // Extract from main heading
+  const h1 = document.querySelector('h1')?.textContent || '';
+  const h1Words = h1.split(/\s+/).filter(w => w.length > 3 && /^[A-Z]/.test(w));
+  h1Words.slice(0, 2).forEach(w => entities.add(w));
+  
+  return Array.from(entities).slice(0, 5);
+}
+
+/**
+ * Calculate scroll depth
+ */
+function getScrollDepth(): number {
+  const windowHeight = window.innerHeight;
+  const documentHeight = document.documentElement.scrollHeight;
+  const scrollTop = window.scrollY;
+  
+  const depth = (scrollTop + windowHeight) / documentHeight;
+  return Math.round(depth * 100);
+}
+
+/**
+ * Count interactions in current session
+ */
+let interactionCount = 0;
+function incrementInteractionCount() {
+  interactionCount++;
+}
+function getInteractionCount(): number {
+  return interactionCount;
+}
+
+/**
+ * Track page in previous pages history
+ */
+function trackPageInHistory() {
+  const pageTitle = document.title;
+  if (pageTitle && !previousPages.includes(pageTitle)) {
+    previousPages.push(pageTitle);
+    if (previousPages.length > MAX_PREVIOUS_PAGES) {
+      previousPages.shift();
+    }
+  }
+}
+
+// Track current page on load
+trackPageInHistory();
+
+/**
+ * Analyze content signals on page
+ */
+function analyzeContentSignals() {
+  const text = document.body.textContent?.toLowerCase() || '';
+  
+  return {
+    hasVideo: !!document.querySelector('video'),
+    hasImages: document.querySelectorAll('img').length > 3,
+    hasForms: document.querySelectorAll('form').length > 0,
+    hasPricing: /\$\d+|€\d+|£\d+|price:/i.test(text),
+    hasReviews: /\d+\s*star|rating|review/i.test(text),
+    hasComparison: /\bvs\b|compare|comparison/i.test(text),
+  };
+}
+
+/**
+ * Capture enhanced semantic context for event
+ */
+function captureSemanticContext(element?: HTMLElement) {
+  const now = new Date();
+  
+  return {
+    // Element-level semantics (if element provided)
+    ...(element && {
+      purpose: inferElementPurpose(element),
+      semanticRole: element.getAttribute('aria-label') || element.getAttribute('role') || '',
+      elementContext: {
+        text: element.textContent?.trim().substring(0, 100) || '',
+        nearbyText: getNearbyText(element, 50),
+        visualWeight: getVisualWeight(element),
+        pageSection: getPageSection(element),
+      },
+    }),
+    
+    // Page-level semantics
+    pageMetadata: {
+      type: inferPageType(),
+      mainHeading: getMainHeading(),
+      category: inferPageCategory(),
+      description: getPageDescription(),
+      keyEntities: extractKeyEntities(),
+    },
+    
+    // Journey-level signals
+    journeyState: {
+      sessionDuration: Math.round((Date.now() - sessionStart) / 1000), // seconds
+      scrollDepth: getScrollDepth(),
+      interactionDepth: getInteractionCount(),
+      previousPages: [...previousPages],
+    },
+    
+    // Temporal context
+    temporal: {
+      timeOfDay: now.getHours(),
+      dayOfWeek: now.getDay(),
+      isWorkHours: now.getHours() >= 9 && now.getHours() <= 17 && now.getDay() >= 1 && now.getDay() <= 5,
+      isWeekend: now.getDay() === 0 || now.getDay() === 6,
+    },
+    
+    // Content analysis
+    contentSignals: analyzeContentSignals(),
+  };
+}
+
 chrome.runtime.sendMessage({ type: 'GET_STATUS' }, (response) => {
   if (chrome.runtime.lastError) {
     console.warn('[Content] Extension context invalidated:', chrome.runtime.lastError.message);
@@ -103,12 +493,18 @@ function captureEvent(eventData: any) {
   if (!isEnabled) return;
   if (shouldIgnore) return; // T19.1: Don't capture events from ignored domains
   
+  // Increment interaction count for journey tracking
+  incrementInteractionCount();
+  
   // Generate unique ID for this event
   const eventId = generateEventId(eventData.type);
   const timestamp = new Date().toISOString();
   
   // Get context before adding current event
   const context = getEventContext();
+  
+  // LEVEL 1: Capture enhanced semantic context
+  const semanticContext = captureSemanticContext(eventData.element);
   
   const event = {
     ...eventData,
@@ -117,6 +513,7 @@ function captureEvent(eventData: any) {
     url: window.location.href,
     title: document.title,
     context, // T13: Include 3-5 preceding event IDs
+    semantic_context: semanticContext, // LEVEL 1: Rich semantic context
   };
   
   // Add current event to context for next event
@@ -225,6 +622,7 @@ document.addEventListener('click', (e: MouseEvent) => {
       y: e.clientY,
     },
     timestamp: new Date().toISOString(),
+    element: target, // Pass element for semantic context
   };
   
   captureEvent(clickData);
