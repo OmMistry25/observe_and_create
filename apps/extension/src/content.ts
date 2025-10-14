@@ -6,7 +6,6 @@
  */
 
 import { addEventAndDetect, getDetectedPatterns } from './patternDetector';
-import { initNudgeSystem, queueNudge, type Nudge } from './nudgeManager';
 
 // Log to both extension console and page console
 console.log('[Content] Script loaded on:', window.location.href);
@@ -38,11 +37,6 @@ const shouldIgnore = shouldIgnoreCurrentDomain();
 if (shouldIgnore) {
   console.log('[Content] Ignoring domain:', window.location.host);
   // Still log to page but don't capture events
-}
-
-// T18.1 & T18.2: Initialize nudge system (only if not ignored)
-if (!shouldIgnore) {
-  initNudgeSystem();
 }
 
 // Check if extension is enabled
@@ -506,12 +500,16 @@ function captureEvent(eventData: any) {
   // LEVEL 1: Capture enhanced semantic context
   const semanticContext = captureSemanticContext(eventData.element);
   
+  // Extract domain from URL for efficient server-side filtering
+  const domain = window.location.hostname.replace('www.', '');
+  
   const event = {
     ...eventData,
     id: eventId,
     timestamp,
     url: window.location.href,
     title: document.title,
+    domain, // Add domain for efficient server-side queries
     context, // T13: Include 3-5 preceding event IDs
     semantic_context: semanticContext, // LEVEL 1: Rich semantic context
   };
@@ -531,55 +529,6 @@ function captureEvent(eventData: any) {
       type: 'PATTERN_DETECTED',
       pattern: detectedPattern,
     });
-    
-    // T18.1: Show nudge for detected pattern
-    const nudge: Nudge = {
-      id: `pattern-${detectedPattern.sequence.map(e => e.type).join('-')}-${Date.now()}`,
-      type: 'pattern_detected',
-      title: '🎯 Pattern Detected',
-      message: `I noticed you often do: ${detectedPattern.sequence.map(e => e.type).join(' → ')}. Would you like to automate this?`,
-      actionLabel: 'Create Automation',
-      actionUrl: `http://localhost:3000/dashboard?pattern=${encodeURIComponent(JSON.stringify(detectedPattern.sequence))}`,
-      metadata: detectedPattern,
-    };
-    queueNudge(nudge);
-  }
-  
-  // T18.1: Detect high-friction events and show nudges
-  if (eventData.type === 'friction' && eventData.frictionType) {
-    let nudgeMessage = '';
-    let nudgeTitle = '💡 Need Help?';
-    
-    switch (eventData.frictionType) {
-      case 'rage_click':
-        nudgeMessage = `I noticed you're clicking repeatedly on this element. I can help automate this interaction.`;
-        break;
-      case 'rapid_scroll':
-        nudgeMessage = `You seem to be scrolling quickly looking for something. Want to set up automated navigation?`;
-        break;
-      case 'form_abandon':
-        nudgeMessage = `Form abandoned? I can help you auto-fill this form in the future.`;
-        break;
-      case 'back_button':
-        nudgeMessage = `Going back frequently? I can help you skip unnecessary steps.`;
-        break;
-      case 'slow_load':
-        nudgeMessage = `This page is loading slowly. I can help you work more efficiently.`;
-        break;
-    }
-    
-    if (nudgeMessage) {
-      const frictionNudge: Nudge = {
-        id: `friction-${eventData.frictionType}-${Date.now()}`,
-        type: 'high_friction',
-        title: nudgeTitle,
-        message: nudgeMessage,
-        actionLabel: 'Get Help',
-        actionUrl: `http://localhost:3000/dashboard?friction=${eventData.frictionType}`,
-        metadata: { frictionType: eventData.frictionType },
-      };
-      queueNudge(frictionNudge);
-    }
   }
   
   // Log event capture to page console with semantic details

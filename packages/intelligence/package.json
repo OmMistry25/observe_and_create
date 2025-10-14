@@ -1,0 +1,20 @@
+{
+  "name": "@observe-create/intelligence",
+  "version": "0.0.0",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@observe-create/schemas": "workspace:*",
+    "@supabase/supabase-js": "^2.39.3",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
+}
+

@@ -77,7 +77,7 @@ export default function PatternsPage() {
 
       const data = await response.json();
       if (data.success) {
-        alert(`Found ${data.patterns_found} patterns, stored ${data.patterns_stored}`);
+        alert(`${data.message}\n\nMined ${data.patterns_found} patterns with smart weighting!`);
         fetchPatterns();
       } else {
         alert('Error mining patterns: ' + data.error);

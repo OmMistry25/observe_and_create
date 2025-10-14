@@ -45,16 +45,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 2. Get patterns without goals
+    // 2. First, check total patterns
+    const { count: totalPatterns } = await supabase
+      .from('patterns')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id);
+
+    console.log(`[InferGoals] User has ${totalPatterns} total patterns`);
+
+    // Check how many already have goals
+    const { count: withGoals } = await supabase
+      .from('patterns')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .not('inferred_goal', 'is', null);
+
+    console.log(`[InferGoals] ${withGoals} patterns already have goals`);
+
+    // Get patterns without goals that meet criteria
     const { data: patterns, error: patternsError } = await supabase
       .from('patterns')
       .select('id, sequence, support, confidence')
       .eq('user_id', user.id)
       .is('inferred_goal', null)
-      .gte('support', 3)
-      .gte('confidence', 0.3)
+      .gte('support', 1)
+      // No confidence filter - process all patterns regardless of confidence
       .order('support', { ascending: false })
-      .limit(10); // Process 10 patterns per request
+      .limit(20); // Process 20 patterns per request
 
     if (patternsError) {
       console.error('[InferGoals] Error fetching patterns:', patternsError);
@@ -64,11 +81,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    console.log(`[InferGoals] Found ${patterns?.length || 0} patterns without goals (support >= 1, any confidence)`);
+
     if (!patterns || patterns.length === 0) {
       return NextResponse.json({
         success: true,
-        message: 'No patterns need goal inference',
+        message: `All ${totalPatterns} patterns already have goals. ${withGoals} patterns with goals, ${totalPatterns - (withGoals || 0)} without.`,
         processed: 0,
+        total: 0,
+        stats: {
+          total_patterns: totalPatterns,
+          with_goals: withGoals,
+          without_goals: totalPatterns - (withGoals || 0),
+        },
       });
     }
 

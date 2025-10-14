@@ -7,7 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { TimelineChart } from '@/components/TimelineChart';
-import AutomationSuggestions from '@/components/AutomationSuggestions';
+import InsightCards from '@/components/InsightCards';
+import WorkflowComparison from '@/components/WorkflowComparison';
+import ProductivityDashboard from '@/components/ProductivityDashboard';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -200,16 +202,6 @@ export default function DashboardPage() {
               <Button variant="outline" onClick={() => router.push('/settings')}>
                 Settings
               </Button>
-              <Button variant="outline" onClick={() => router.push('/test-ingest')}>
-                Test Ingest
-              </Button>
-              <Button 
-                onClick={() => router.push('/automations')} 
-                variant="outline"
-                className="border-indigo-200 text-indigo-700 hover:bg-indigo-50"
-              >
-                🤖 Automations
-              </Button>
               <Button 
                 onClick={handleInferGoals}
                 variant="outline"
@@ -224,11 +216,17 @@ export default function DashboardPage() {
             </div>
           </div>
 
+          {/* Productivity Overview */}
+          <ProductivityDashboard />
+
           {/* Timeline Chart */}
           <TimelineChart hours={24} />
 
-          {/* T19: Automation Suggestions - Only shows when enough data is collected */}
-          <AutomationSuggestions />
+          {/* Workflow Insights & Recommendations */}
+          <InsightCards />
+
+          {/* Workflow Optimization Analysis */}
+          <WorkflowComparison />
 
           <div className="pt-4">
             <h3 className="text-2xl font-bold tracking-tight">Activity Feed</h3>

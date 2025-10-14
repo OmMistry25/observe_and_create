@@ -54,6 +54,9 @@ importers:
       '@observe-create/ingest':
         specifier: workspace:*
         version: link:../../packages/ingest
+      '@observe-create/intelligence':
+        specifier: workspace:*
+        version: link:../../packages/intelligence
       '@observe-create/schemas':
         specifier: workspace:*
         version: link:../../packages/schemas
@@ -162,6 +165,22 @@ importers:
       '@types/node':
         specifier: ^20.12.0
         version: 20.19.19
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+
+  packages/intelligence:
+    dependencies:
+      '@observe-create/schemas':
+        specifier: workspace:*
+        version: link:../schemas
+      '@supabase/supabase-js':
+        specifier: ^2.39.3
+        version: 2.74.0
+      zod:
+        specifier: ^3.23.0
+        version: 3.25.76
+    devDependencies:
       typescript:
         specifier: ^5.3.3
         version: 5.9.3

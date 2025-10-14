@@ -12,6 +12,7 @@
   "dependencies": {
     "@observe-create/automation": "workspace:*",
     "@observe-create/ingest": "workspace:*",
+    "@observe-create/intelligence": "workspace:*",
     "@observe-create/schemas": "workspace:*",
     "@radix-ui/react-checkbox": "^1.3.3",
     "@radix-ui/react-slot": "^1.2.3",

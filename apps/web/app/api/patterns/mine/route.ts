@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { mineFrequencyPatterns, storePatterns } from '@observe-create/automation';
 
 /**
  * POST /api/patterns/mine
  * 
  * Trigger pattern mining for the authenticated user
- * Mines frequency-based patterns from recent activity
+ * Uses the smart weighting SQL function with temporal + semantic scoring
  */
 export async function POST(request: NextRequest) {
   try {
@@ -45,17 +44,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 2. Mine patterns
-    console.log(`[Patterns] Mining patterns for user ${user.id}`);
-    const patterns = await mineFrequencyPatterns(supabase, user.id);
+    // 2. Call the smart pattern mining SQL function
+    console.log(`[Patterns] Mining patterns for user ${user.id} with smart weighting`);
+    
+    const { data, error: miningError } = await supabase.rpc('mine_patterns_sql', {
+      p_user_id: user.id,
+      p_min_support: 2,
+      p_time_window_days: 7,
+    });
 
-    // 3. Store patterns
-    const storedCount = await storePatterns(supabase, patterns);
+    if (miningError) {
+      console.error('[Patterns] Error mining patterns:', miningError);
+      return NextResponse.json(
+        { success: false, error: 'Pattern mining failed', details: miningError.message },
+        { status: 500 }
+      );
+    }
 
+    const result = data?.[0];
+    
     return NextResponse.json({
       success: true,
-      patterns_found: patterns.length,
-      patterns_stored: storedCount,
+      patterns_found: result?.pattern_count || 0,
+      user_count: result?.user_count || 0,
+      message: result?.message || 'Pattern mining completed',
     });
   } catch (error) {
     console.error('[Patterns] Error mining patterns:', error);
