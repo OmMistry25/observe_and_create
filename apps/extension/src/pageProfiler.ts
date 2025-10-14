@@ -250,7 +250,7 @@ export class PageProfiler {
     const metadata: Record<string, string> = {};
 
     // Look for common metadata patterns
-    const authorEl = document.querySelector('[rel="author"], .author, [itempr op="author"]');
+    const authorEl = document.querySelector('[rel="author"], .author, [itemprop="author"]');
     if (authorEl) metadata.author = this.getUniqueSelector(authorEl);
 
     const dateEl = document.querySelector('time, .date, [itemprop="datePublished"]');
