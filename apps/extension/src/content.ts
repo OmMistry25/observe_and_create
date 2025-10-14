@@ -6,6 +6,10 @@
  */
 
 import { addEventAndDetect, getDetectedPatterns } from './patternDetector';
+import { PageProfiler } from './pageProfiler';
+
+// Initialize Page Profiler for smart DOM extraction
+const pageProfiler = new PageProfiler();
 
 // Log to both extension console and page console
 console.log('[Content] Script loaded on:', window.location.href);
@@ -483,7 +487,7 @@ chrome.runtime.sendMessage({ type: 'GET_STATUS' }, (response) => {
 /**
  * Send event to background script
  */
-function captureEvent(eventData: any) {
+async function captureEvent(eventData: any) {
   if (!isEnabled) return;
   if (shouldIgnore) return; // T19.1: Don't capture events from ignored domains
   
@@ -503,15 +507,36 @@ function captureEvent(eventData: any) {
   // Extract domain from URL for efficient server-side filtering
   const domain = window.location.hostname.replace('www.', '');
   
+  // Extract URL path (normalized) for frequency tracking
+  const urlPath = pageProfiler['normalizeUrl'](window.location.href);
+  
+  // Issue #1: Smart DOM extraction - only extract if page is visited frequently
+  let documentContext = null;
+  const shouldExtractDOM = await pageProfiler.shouldProfile(window.location.href);
+  
+  if (shouldExtractDOM) {
+    try {
+      const profile = await pageProfiler.getOrCreateProfile(window.location.href);
+      documentContext = pageProfiler.extractUsingProfile(profile);
+      console.log(`[PageProfiler] ✅ Extracted DOM context for frequent page (${profile.visitCount} visits)`);
+    } catch (error) {
+      console.warn('[PageProfiler] Failed to extract DOM context:', error);
+    }
+  } else {
+    console.log(`[PageProfiler] ⏭️  Skipping DOM extraction for infrequent page`);
+  }
+  
   const event = {
     ...eventData,
     id: eventId,
     timestamp,
     url: window.location.href,
+    url_path: urlPath, // Issue #1: Track normalized URL path
     title: document.title,
     domain, // Add domain for efficient server-side queries
     context, // T13: Include 3-5 preceding event IDs
     semantic_context: semanticContext, // LEVEL 1: Rich semantic context
+    document_context: documentContext, // Issue #1: Smart-extracted DOM context (only for frequent pages)
   };
   
   // Add current event to context for next event
