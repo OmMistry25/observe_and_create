@@ -179,7 +179,7 @@ export default function PatternsPage() {
               <CardContent className="pt-6">
                 <div className="text-center py-12">
                   <p className="text-muted-foreground mb-4">
-                    No patterns detected yet. Start browsing to collect data, then click "Mine Patterns" above.
+                    No patterns detected yet. Start browsing to collect data, then click &quot;Mine Patterns&quot; above.
                   </p>
                 </div>
               </CardContent>

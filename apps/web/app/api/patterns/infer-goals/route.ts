@@ -86,13 +86,13 @@ export async function POST(request: NextRequest) {
     if (!patterns || patterns.length === 0) {
       return NextResponse.json({
         success: true,
-        message: `All ${totalPatterns} patterns already have goals. ${withGoals} patterns with goals, ${totalPatterns - (withGoals || 0)} without.`,
+        message: `All ${totalPatterns || 0} patterns already have goals. ${withGoals || 0} patterns with goals, ${(totalPatterns || 0) - (withGoals || 0)} without.`,
         processed: 0,
         total: 0,
         stats: {
           total_patterns: totalPatterns,
           with_goals: withGoals,
-          without_goals: totalPatterns - (withGoals || 0),
+          without_goals: (totalPatterns || 0) - (withGoals || 0),
         },
       });
     }

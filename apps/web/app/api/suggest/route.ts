@@ -184,7 +184,7 @@ function generatePatternSuggestion(pattern: any): AutomationSuggestion | null {
     metadata: {
       support: pattern.support,
       pattern_type: pattern.pattern_type,
-      domains,
+      domains: domains as string[],
       temporal_info: pattern.temporal_pattern,
     },
   };

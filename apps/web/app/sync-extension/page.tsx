@@ -46,9 +46,9 @@ export default function SyncExtensionPage() {
       setStatus(`✅ Session found for: ${session.user.email}\n⏳ Storing in extension...`);
       
       // Store directly in Chrome extension storage
-      if (typeof chrome !== 'undefined' && chrome.storage) {
+      if (typeof window !== 'undefined' && (window as any).chrome?.storage) {
         try {
-          await chrome.storage.local.set({ 
+          await (window as any).chrome.storage.local.set({ 
             session: session,
             supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
             supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
@@ -162,10 +162,10 @@ export default function SyncExtensionPage() {
           <div className="border-t pt-4 mt-4">
             <h3 className="font-semibold mb-2">📋 Instructions:</h3>
             <ol className="list-decimal list-inside space-y-2 text-sm text-gray-700">
-              <li>Click <strong>"Sync Session to Extension"</strong> to authenticate</li>
+              <li>Click <strong>&quot;Sync Session to Extension&quot;</strong> to authenticate</li>
               <li>Check console for: <code className="bg-gray-100 px-2 py-1 rounded">[Content] Session received and stored</code></li>
               <li>Click around the page to capture events</li>
-              <li>Click <strong>"Trigger Manual Upload"</strong> to force upload</li>
+              <li>Click <strong>&quot;Trigger Manual Upload&quot;</strong> to force upload</li>
               <li>Check Supabase: <code className="bg-gray-100 px-2 py-1 rounded">SELECT COUNT(*) FROM events</code></li>
             </ol>
           </div>

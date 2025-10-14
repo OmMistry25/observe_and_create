@@ -102,7 +102,7 @@ export default function OnboardingPage() {
       <CardHeader>
         <CardTitle className="text-2xl">Welcome to Observe & Create</CardTitle>
         <CardDescription>
-          Let's set up your privacy preferences and data collection settings
+          Let&apos;s set up your privacy preferences and data collection settings
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">

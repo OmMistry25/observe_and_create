@@ -36,7 +36,7 @@ export default function TestExtensionPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Extension Test Page</h1>
           <p className="text-gray-600 mt-2">
-            This page helps test the browser extension's event capture functionality
+            This page helps test the browser extension&apos;s event capture functionality
           </p>
         </div>
 
