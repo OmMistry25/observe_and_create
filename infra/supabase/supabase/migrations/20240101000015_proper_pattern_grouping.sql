@@ -1,6 +1,5 @@
--- Fix Pattern Grouping Logic
--- Problem: Patterns were grouped by full sequence JSON including unique IDs and timestamps
--- Solution: Create a normalized pattern_key for matching, store full sequence for context
+-- Proper Pattern Grouping Fix
+-- This completely rewrites the pattern mining logic to correctly group patterns
 
 DROP FUNCTION IF EXISTS mine_patterns_sql(UUID, INT, INT) CASCADE;
 
@@ -20,15 +19,6 @@ DECLARE
   v_pattern_count INT := 0;
   v_user_count INT := 0;
   v_last_count INT := 0;
-  v_ignored_domains TEXT[] := ARRAY[
-    'localhost',
-    '127.0.0.1',
-    '0.0.0.0',
-    'localhost:3000',
-    'localhost:3001',
-    'localhost:3002',
-    'localhost:8080'
-  ];
 BEGIN
   v_since := NOW() - (p_time_window_days || ' days')::INTERVAL;
 
@@ -39,12 +29,12 @@ BEGIN
 
     INSERT INTO patterns (user_id, pattern_type, sequence, support, confidence, last_seen)
     WITH user_events AS (
+      -- Get all non-localhost events with quality and time decay scores
       SELECT 
         id, user_id, ts, type, url, title, dom_path, text, meta, dwell_ms,
         semantic_context,
-        -- Extract domain for pattern matching
         REGEXP_REPLACE(REGEXP_REPLACE(url, '^https?://(www\.)?', ''), '/.*$', '') as domain,
-        -- Quality score
+        -- Quality score based on semantic richness
         CASE
           WHEN semantic_context IS NULL THEN 0.3
           ELSE LEAST(1.0, 
@@ -55,21 +45,18 @@ BEGIN
             CASE WHEN (semantic_context->'journeyState'->>'interactionDepth')::INT > 5 THEN 0.2 ELSE 0 END
           )
         END AS event_quality,
-        -- Time decay
+        -- Exponential time decay (recent = 1.0, 4+ days old = 0.3)
         GREATEST(0.3, 
           EXP(-0.3 * EXTRACT(EPOCH FROM (NOW() - ts)) / 86400.0)
-        ) AS time_decay
+        ) AS time_decay,
+        ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY ts) AS event_num
       FROM events
       WHERE user_id = p_user_id
         AND ts >= v_since
         AND NOT (
           url ~* 'localhost' OR
           url ~* '127\.0\.0\.1' OR
-          url ~* '0\.0\.0\.0' OR
-          url ~* 'localhost:3000' OR
-          url ~* 'localhost:3001' OR
-          url ~* 'localhost:3002' OR
-          url ~* 'localhost:8080'
+          url ~* '0\.0\.0\.0'
         )
       ORDER BY ts ASC
     ),
@@ -79,10 +66,13 @@ BEGIN
         (POWER(time_decay, 0.6) * POWER(event_quality, 0.4)) AS event_weight
       FROM user_events
     ),
-    sequences AS (
-      SELECT 
+    -- Create sliding windows of 3-5 consecutive events
+    event_sequences AS (
+      SELECT
         user_id,
-        -- FULL sequence with all context (for storage)
+        event_num,
+        3 AS window_size,
+        -- Create a sequence of exactly 3 consecutive events
         jsonb_agg(
           jsonb_build_object(
             'id', id,
@@ -95,37 +85,54 @@ BEGIN
             'ts', ts,
             'semantic_context', semantic_context,
             'weight', ROUND(event_weight::NUMERIC, 3)
-          ) ORDER BY ts
+          ) ORDER BY event_num
         ) AS sequence,
-        -- NORMALIZED key for matching (type:domain pattern)
-        array_agg(type || ':' || domain ORDER BY ts) AS pattern_key,
-        COUNT(*) AS seq_length,
-        SUM(event_weight) AS weighted_support,
-        MAX(ts) AS last_ts,
-        AVG(event_quality) AS avg_quality
+        -- Pattern key for matching (normalized)
+        array_agg(type || ':' || domain ORDER BY event_num) AS pattern_key,
+        SUM(event_weight) AS total_weight,
+        AVG(event_quality) AS avg_quality,
+        MAX(ts) AS last_ts
       FROM (
         SELECT 
-          user_id, id, type, url, title, domain, dom_path, text, ts, semantic_context,
-          event_quality, event_weight,
-          ts - LAG(ts, 2) OVER (PARTITION BY user_id ORDER BY ts) AS time_gap
-        FROM weighted_events
-      ) sub
-      WHERE time_gap < INTERVAL '5 minutes' OR time_gap IS NULL
-      GROUP BY user_id, (ts::DATE), ARRAY[id, type, url]  -- Group events that are close together
-      HAVING COUNT(*) >= 3 AND COUNT(*) <= 5
+          e1.user_id, e1.event_num,
+          e1.id, e1.type, e1.url, e1.title, e1.domain, e1.dom_path, e1.text, e1.ts, 
+          e1.semantic_context, e1.event_weight, e1.event_quality
+        FROM weighted_events e1
+        UNION ALL
+        SELECT 
+          e2.user_id, e1.event_num,
+          e2.id, e2.type, e2.url, e2.title, e2.domain, e2.dom_path, e2.text, e2.ts,
+          e2.semantic_context, e2.event_weight, e2.event_quality
+        FROM weighted_events e1
+        JOIN weighted_events e2 ON e2.user_id = e1.user_id AND e2.event_num = e1.event_num + 1
+        WHERE e2.ts - e1.ts < INTERVAL '5 minutes'
+        UNION ALL
+        SELECT 
+          e3.user_id, e1.event_num,
+          e3.id, e3.type, e3.url, e3.title, e3.domain, e3.dom_path, e3.text, e3.ts,
+          e3.semantic_context, e3.event_weight, e3.event_quality
+        FROM weighted_events e1
+        JOIN weighted_events e2 ON e2.user_id = e1.user_id AND e2.event_num = e1.event_num + 1
+        JOIN weighted_events e3 ON e3.user_id = e1.user_id AND e3.event_num = e1.event_num + 2
+        WHERE e2.ts - e1.ts < INTERVAL '5 minutes'
+          AND e3.ts - e2.ts < INTERVAL '5 minutes'
+      ) sequences_expanded
+      GROUP BY user_id, event_num
+      HAVING COUNT(*) = 3  -- Only 3-event sequences for now
     ),
+    -- Group by pattern_key to find recurring patterns
     pattern_groups AS (
       SELECT 
         user_id,
-        -- Use first occurrence's full sequence as the canonical one
-        (array_agg(sequence ORDER BY last_ts DESC))[1] AS sequence,
         pattern_key,
         COUNT(*) AS raw_support,
-        SUM(weighted_support) AS total_weighted_support,
+        SUM(total_weight) AS total_weighted_support,
         AVG(avg_quality) AS pattern_quality,
+        -- Use the most recent sequence as the canonical one
+        (array_agg(sequence ORDER BY last_ts DESC))[1] AS sequence,
         MAX(last_ts) AS last_ts
-      FROM sequences
-      GROUP BY user_id, pattern_key  -- ✅ Group by normalized pattern, not full sequence!
+      FROM event_sequences
+      GROUP BY user_id, pattern_key
       HAVING COUNT(*) >= p_min_support
     )
     SELECT 
@@ -173,18 +180,15 @@ BEGIN
           END AS event_quality,
           GREATEST(0.3, 
             EXP(-0.3 * EXTRACT(EPOCH FROM (NOW() - ts)) / 86400.0)
-          ) AS time_decay
+          ) AS time_decay,
+          ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY ts) AS event_num
         FROM events
         WHERE user_id = v_user_id
           AND ts >= v_since
           AND NOT (
             url ~* 'localhost' OR
             url ~* '127\.0\.0\.1' OR
-            url ~* '0\.0\.0\.0' OR
-            url ~* 'localhost:3000' OR
-            url ~* 'localhost:3001' OR
-            url ~* 'localhost:3002' OR
-            url ~* 'localhost:8080'
+            url ~* '0\.0\.0\.0'
           )
         ORDER BY ts ASC
       ),
@@ -194,9 +198,11 @@ BEGIN
           (POWER(time_decay, 0.6) * POWER(event_quality, 0.4)) AS event_weight
         FROM user_events
       ),
-      sequences AS (
-        SELECT 
+      event_sequences AS (
+        SELECT
           user_id,
+          event_num,
+          3 AS window_size,
           jsonb_agg(
             jsonb_build_object(
               'id', id,
@@ -209,34 +215,50 @@ BEGIN
               'ts', ts,
               'semantic_context', semantic_context,
               'weight', ROUND(event_weight::NUMERIC, 3)
-            ) ORDER BY ts
+            ) ORDER BY event_num
           ) AS sequence,
-          array_agg(type || ':' || domain ORDER BY ts) AS pattern_key,
-          COUNT(*) AS seq_length,
-          SUM(event_weight) AS weighted_support,
-          MAX(ts) AS last_ts,
-          AVG(event_quality) AS avg_quality
+          array_agg(type || ':' || domain ORDER BY event_num) AS pattern_key,
+          SUM(event_weight) AS total_weight,
+          AVG(event_quality) AS avg_quality,
+          MAX(ts) AS last_ts
         FROM (
           SELECT 
-            user_id, id, type, url, title, domain, dom_path, text, ts, semantic_context,
-            event_quality, event_weight,
-            ts - LAG(ts, 2) OVER (PARTITION BY user_id ORDER BY ts) AS time_gap
-          FROM weighted_events
-        ) sub
-        WHERE time_gap < INTERVAL '5 minutes' OR time_gap IS NULL
-        GROUP BY user_id, (ts::DATE), ARRAY[id, type, url]
-        HAVING COUNT(*) >= 3 AND COUNT(*) <= 5
+            e1.user_id, e1.event_num,
+            e1.id, e1.type, e1.url, e1.title, e1.domain, e1.dom_path, e1.text, e1.ts, 
+            e1.semantic_context, e1.event_weight, e1.event_quality
+          FROM weighted_events e1
+          UNION ALL
+          SELECT 
+            e2.user_id, e1.event_num,
+            e2.id, e2.type, e2.url, e2.title, e2.domain, e2.dom_path, e2.text, e2.ts,
+            e2.semantic_context, e2.event_weight, e2.event_quality
+          FROM weighted_events e1
+          JOIN weighted_events e2 ON e2.user_id = e1.user_id AND e2.event_num = e1.event_num + 1
+          WHERE e2.ts - e1.ts < INTERVAL '5 minutes'
+          UNION ALL
+          SELECT 
+            e3.user_id, e1.event_num,
+            e3.id, e3.type, e3.url, e3.title, e3.domain, e3.dom_path, e3.text, e3.ts,
+            e3.semantic_context, e3.event_weight, e3.event_quality
+          FROM weighted_events e1
+          JOIN weighted_events e2 ON e2.user_id = e1.user_id AND e2.event_num = e1.event_num + 1
+          JOIN weighted_events e3 ON e3.user_id = e1.user_id AND e3.event_num = e1.event_num + 2
+          WHERE e2.ts - e1.ts < INTERVAL '5 minutes'
+            AND e3.ts - e2.ts < INTERVAL '5 minutes'
+        ) sequences_expanded
+        GROUP BY user_id, event_num
+        HAVING COUNT(*) = 3
       ),
       pattern_groups AS (
         SELECT 
           user_id,
-          (array_agg(sequence ORDER BY last_ts DESC))[1] AS sequence,
           pattern_key,
           COUNT(*) AS raw_support,
-          SUM(weighted_support) AS total_weighted_support,
+          SUM(total_weight) AS total_weighted_support,
           AVG(avg_quality) AS pattern_quality,
+          (array_agg(sequence ORDER BY last_ts DESC))[1] AS sequence,
           MAX(last_ts) AS last_ts
-        FROM sequences
+        FROM event_sequences
         GROUP BY user_id, pattern_key
         HAVING COUNT(*) >= p_min_support
       )
@@ -269,5 +291,5 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-COMMENT ON FUNCTION mine_patterns_sql IS 'Mines patterns with smart weighting and proper grouping. Patterns are matched by normalized type:domain sequences but store full context including semantic_context. Fixed: Now groups by pattern_key instead of full sequence JSON.';
+COMMENT ON FUNCTION mine_patterns_sql IS 'Mines 3-event sequence patterns with proper grouping by normalized pattern_key. Uses sliding window approach with self-joins to create consecutive event sequences, then groups by type:domain pattern to find recurring workflows.';
 

@@ -129,6 +129,8 @@ export interface Evidence {
   friction_events: number;
   supporting_events: string[]; // event IDs
   similar_patterns?: number;
+  friction_breakdown?: Record<string, number>; // friction type counts
+  workflow_steps?: string; // formatted step descriptions
 }
 
 export interface WorkflowComparison {

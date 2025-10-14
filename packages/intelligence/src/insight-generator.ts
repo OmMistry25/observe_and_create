@@ -506,14 +506,60 @@ async function analyzePatternFriction(
   if (avgFriction >= 0.6) {
     const impact = calculateImpact(pattern);
     
+    // Extract specific friction details from events
+    const domains = new Set(sequence.map((e: any) => {
+      try {
+        return new URL(e.url).hostname.replace('www.', '');
+      } catch {
+        return e.domain || 'unknown';
+      }
+    }));
+    
+    const frictionTypes = qualityData
+      .map(q => q.friction_types || [])
+      .flat()
+      .filter(Boolean);
+    
+    const frictionTypeCounts: Record<string, number> = {};
+    frictionTypes.forEach(type => {
+      frictionTypeCounts[type] = (frictionTypeCounts[type] || 0) + 1;
+    });
+    
+    // Identify primary friction source
+    const primaryFriction = Object.entries(frictionTypeCounts)
+      .sort(([, a], [, b]) => b - a)[0];
+    
+    // Build specific description
+    let specificDesc = `This workflow on **${Array.from(domains).join(', ')}** has an average friction score of **${(avgFriction * 100).toFixed(0)}%**.`;
+    
+    if (primaryFriction) {
+      const [frictionType, count] = primaryFriction;
+      const frictionDescriptions: Record<string, string> = {
+        'rapid_scrolling': `You scrolled rapidly ${count} time(s), suggesting difficulty finding information`,
+        'back_button': `You used the back button ${count} time(s), indicating navigation confusion`,
+        'form_abandonment': `You abandoned forms ${count} time(s), suggesting frustration with data entry`,
+        'error_state': `You encountered errors ${count} time(s)`,
+        'slow_loading': `You experienced slow page loads ${count} time(s)`,
+        'rage_clicks': `You clicked repeatedly on non-responsive elements ${count} time(s)`,
+      };
+      
+      specificDesc += ` ${frictionDescriptions[frictionType] || `Detected ${frictionType} friction ${count} time(s)`}.`;
+    }
+    
+    // Goal-specific recommendation
+    let specificRec = 'Review this workflow to identify pain points.';
+    if (pattern.inferred_goal) {
+      specificRec = `Your goal was "${pattern.inferred_goal}". Consider alternative tools or approaches for this task.`;
+    }
+    
     return {
       id: `friction-${pattern.id}`,
       user_id: pattern.user_id,
       pattern_id: pattern.id,
       insight_type: 'friction_point',
-      title: '⚠️ High Friction Detected',
-      description: `This workflow has an average friction score of ${(avgFriction * 100).toFixed(0)}%, indicating difficulty or frustration.`,
-      recommendation: 'Review this workflow to identify pain points. Consider alternative approaches or tools that might reduce friction.',
+      title: `⚠️ High Friction Detected`,
+      description: specificDesc,
+      recommendation: specificRec,
       impact_score: avgFriction * pattern.support,
       impact_level: impact,
       confidence: 0.85,
@@ -522,6 +568,7 @@ async function analyzePatternFriction(
         total_time_spent: 0,
         friction_events: qualityData.filter(q => (q.friction_score || 0) > 0.7).length,
         supporting_events: eventIds,
+        friction_breakdown: frictionTypeCounts,
       },
       status: 'new',
       created_at: new Date().toISOString(),
@@ -629,15 +676,46 @@ function generateProductivityInsight(pattern: Pattern): WorkflowInsight | null {
     return null;
   }
 
-  const domains = new Set(pattern.sequence.map((e: any) => {
+  // Use enriched sequence if available
+  const sequence = (pattern as any).semantic_enriched_sequence || pattern.sequence;
+
+  const domains = new Set(sequence.map((e: any) => {
     try {
-      return new URL(e.url).hostname;
+      return new URL(e.url).hostname.replace('www.', '');
     } catch {
-      return null;
+      return e.domain || 'unknown';
     }
-  }).filter(Boolean));
+  }));
 
   const domainList = Array.from(domains).slice(0, 3).join(', ');
+  
+  // Build a workflow step description
+  const stepDescriptions = sequence.slice(0, 3).map((e: any, idx: number) => {
+    const stepNum = idx + 1;
+    const actionType = e.type === 'click' ? 'Click' : e.type === 'nav' ? 'Navigate to' : e.type;
+    const pageName = e.title ? `"${e.title.substring(0, 50)}${e.title.length > 50 ? '...' : ''}"` : 
+                     e.domain || new URL(e.url).hostname.replace('www.', '');
+    return `${stepNum}. ${actionType} ${pageName}`;
+  }).join('\n');
+  
+  // Build specific description
+  const specificDesc = `You perform this workflow **${pattern.support} time${pattern.support > 1 ? 's' : ''}** across ${domains.size} site${domains.size > 1 ? 's' : ''}: **${domainList}**${domains.size > 3 ? '...' : ''}.\n\n**Typical steps:**\n${stepDescriptions}${sequence.length > 3 ? `\n...and ${sequence.length - 3} more step${sequence.length - 3 > 1 ? 's' : ''}` : ''}`;
+  
+  // Build recommendation based on goal
+  let specificRec = `This is a core part of your **${pattern.inferred_goal}** workflow. Consider:\n`;
+  
+  if (pattern.support >= 10) {
+    specificRec += `• Creating a dedicated browser workspace for this frequent task\n`;
+    specificRec += `• Setting up keyboard shortcuts to access these sites instantly\n`;
+    specificRec += `• Bookmarking the exact pages you visit most often`;
+  } else if (pattern.support >= 5) {
+    specificRec += `• Pinning these tabs to save time on navigation\n`;
+    specificRec += `• Bookmarking the starting point of this workflow\n`;
+    specificRec += `• Grouping these sites in a bookmark folder for quick access`;
+  } else {
+    specificRec += `• Bookmarking these sites for easier access\n`;
+    specificRec += `• Using browser history search to revisit this workflow quickly`;
+  }
   
   return {
     id: `productivity-${pattern.id}`,
@@ -645,8 +723,8 @@ function generateProductivityInsight(pattern: Pattern): WorkflowInsight | null {
     pattern_id: pattern.id,
     insight_type: 'workflow_improvement',
     title: `📊 Frequent Workflow: ${pattern.inferred_goal}`,
-    description: `You perform this workflow ${pattern.support} times, involving ${domains.size} site${domains.size > 1 ? 's' : ''}: ${domainList}${domains.size > 3 ? '...' : ''}.`,
-    recommendation: `This is a core part of your workflow. Consider:\n• Bookmarking these sites for quick access\n• Creating browser shortcuts (Cmd+1, Cmd+2)\n• Using browser workspaces to group these tabs`,
+    description: specificDesc,
+    recommendation: specificRec,
     impact_score: pattern.support * 0.5,
     impact_level: pattern.support >= 10 ? 'medium' : 'low',
     confidence: pattern.confidence,
@@ -654,7 +732,8 @@ function generateProductivityInsight(pattern: Pattern): WorkflowInsight | null {
       pattern_occurrences: pattern.support,
       total_time_spent: 0,
       friction_events: 0,
-      supporting_events: pattern.sequence.map((e: any) => e.id).filter(Boolean),
+      supporting_events: sequence.map((e: any) => e.id).filter(Boolean),
+      workflow_steps: stepDescriptions,
     },
     status: 'new',
     created_at: new Date().toISOString(),
