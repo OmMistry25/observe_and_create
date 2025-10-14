@@ -12,7 +12,7 @@ import { matchTemplates, getTemplateSuggestionsForNewUsers } from '@observe-crea
  *  - days: Number of days of history to analyze (default: 7)
  *  - limit: Maximum number of suggestions (default: 5, max: 10)
  */
-export async function GET(request: NextRequest) {
+export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     // Get auth token
     const authHeader = request.headers.get('authorization');

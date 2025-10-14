@@ -92,7 +92,7 @@ export default function AutomationSuggestions() {
         body: JSON.stringify({
           name: suggestion.name,
           description: suggestion.description,
-          pattern_id: suggestion.source_type === 'pattern' ? suggestion.source_id : null,
+          pattern_id: suggestion.source_type === 'pattern' ? (suggestion as any).source_id : null,
           sequence: suggestion.sequence,
           scope: {
             domains: suggestion.metadata?.domains || [],
