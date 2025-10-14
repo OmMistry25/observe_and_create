@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Sync Extension Session</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 600px;
+      margin: 50px auto;
+      padding: 20px;
+    }
+    .status {
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 5px;
+      font-weight: 500;
+    }
+    .success { background: #d4edda; color: #155724; }
+    .error { background: #f8d7da; color: #721c24; }
+    .info { background: #d1ecf1; color: #0c5460; }
+    button {
+      background: #4F46E5;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      font-size: 16px;
+      cursor: pointer;
+      margin: 10px 5px;
+    }
+    button:hover { background: #4338CA; }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔄 Sync Extension with Dashboard</h1>
+  <p>This page will sync your Supabase session with the browser extension.</p>
+  
+  <div id="status"></div>
+  
+  <button id="syncBtn" onclick="syncSession()">Sync Session to Extension</button>
+  <button onclick="checkExtension()">Check Extension Status</button>
+  
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+    
+    const supabase = createClient(
+      'https://adgopseugeurpoznpxwe.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFkZ29wc2V1Z2V1cm9wem5weHdlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mjg0NDczODcsImV4cCI6MjA0NDAyMzM4N30.v7dN8xIQdTM2F9ijhTMW_qgUE7lPDFYlb-VFCq-IlLw'
+    );
+    
+    window.supabase = supabase;
+    
+    window.syncSession = async function() {
+      const statusDiv = document.getElementById('status');
+      const btn = document.getElementById('syncBtn');
+      
+      try {
+        btn.disabled = true;
+        statusDiv.innerHTML = '<div class="info">⏳ Getting session...</div>';
+        
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error || !session) {
+          statusDiv.innerHTML = '<div class="error">❌ Not authenticated. Please log in to the dashboard first.</div>';
+          btn.disabled = false;
+          return;
+        }
+        
+        statusDiv.innerHTML += '<div class="success">✅ Session found: ' + session.user.email + '</div>';
+        
+        // Send session to extension via postMessage
+        window.postMessage({
+          type: 'SUPABASE_SESSION',
+          session: session
+        }, '*');
+        
+        statusDiv.innerHTML += '<div class="success">✅ Session sent to extension!</div>';
+        statusDiv.innerHTML += '<div class="info">Now try clicking around - events should upload to Supabase.</div>';
+        
+        btn.disabled = false;
+      } catch (err) {
+        statusDiv.innerHTML = '<div class="error">❌ Error: ' + err.message + '</div>';
+        btn.disabled = false;
+      }
+    };
+    
+    window.checkExtension = function() {
+      const statusDiv = document.getElementById('status');
+      statusDiv.innerHTML = '<div class="info">Check the browser console for extension logs...</div>';
+      
+      // Check if extension is listening
+      window.postMessage({ type: 'PING_EXTENSION' }, '*');
+      
+      setTimeout(() => {
+        statusDiv.innerHTML += '<div class="info">If you see "[Content] Session received" in console, it\'s working!</div>';
+      }, 100);
+    };
+    
+    // Auto-sync on page load
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        document.getElementById('status').innerHTML = '<div class="info">Ready! Click "Sync Session" to authenticate the extension.</div>';
+      }, 500);
+    });
+  </script>
+</body>
+</html>
+

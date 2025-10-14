@@ -15,6 +15,7 @@ export default function DashboardPage() {
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState<any>(null);
+  const [inferringGoals, setInferringGoals] = useState(false);
   
   // Filters
   const [filters, setFilters] = useState({
@@ -113,6 +114,40 @@ export default function DashboardPage() {
     router.push('/auth/signin');
   };
 
+  const handleInferGoals = async () => {
+    try {
+      setInferringGoals(true);
+      
+      const supabase = createBrowserClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        alert('Not authenticated');
+        return;
+      }
+
+      const response = await fetch('/api/patterns/infer-goals', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        alert(`✅ Goal inference complete!\n\nProcessed: ${result.processed}/${result.total} patterns\n\nCheck the Patterns page to see inferred goals.`);
+      } else {
+        alert(`Error: ${result.error || 'Failed to infer goals'}`);
+      }
+    } catch (error) {
+      console.error('Error inferring goals:', error);
+      alert(`Failed to infer goals: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setInferringGoals(false);
+    }
+  };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString();
   };
@@ -174,6 +209,14 @@ export default function DashboardPage() {
                 className="border-indigo-200 text-indigo-700 hover:bg-indigo-50"
               >
                 🤖 Automations
+              </Button>
+              <Button 
+                onClick={handleInferGoals}
+                variant="outline"
+                disabled={inferringGoals}
+                className="border-purple-200 text-purple-700 hover:bg-purple-50 disabled:opacity-50"
+              >
+                {inferringGoals ? '🔄 Inferring...' : '🧠 Infer Goals'}
               </Button>
               <Button variant="outline" onClick={handleSignOut}>
                 Sign Out

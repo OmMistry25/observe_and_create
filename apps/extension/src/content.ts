@@ -582,9 +582,13 @@ function captureEvent(eventData: any) {
     }
   }
   
-  // Log event capture to page console
-  const eventMsg = `[Content] Event captured: ${eventData.type} on ${eventData.tagName || 'element'} (context: ${context.length} events)`;
+  // Log event capture to page console with semantic details
+  const semanticDetails = semanticContext.purpose 
+    ? ` | Purpose: ${semanticContext.purpose} | PageType: ${semanticContext.pageMetadata?.type || 'unknown'}`
+    : '';
+  const eventMsg = `[Content] Event captured: ${eventData.type} on ${eventData.tagName || 'element'} (context: ${context.length} events)${semanticDetails}`;
   console.log(eventMsg);
+  console.log('[Content] Full semantic context:', semanticContext);
   window.postMessage({ type: 'EXTENSION_LOG', message: eventMsg }, '*');
   
   chrome.runtime.sendMessage({
