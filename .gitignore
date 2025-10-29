@@ -41,3 +41,4 @@ extension-dist/
 # Turbo
 .turbo
 
+data/
