@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { matchTemplates, getTemplateSuggestionsForNewUsers } from '@observe-create/automation';
 
 /**
  * GET /api/templates/suggestions
@@ -136,27 +135,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Match templates
-    let suggestions;
-    if (userAgeInDays <= 7) {
-      // New user: use adjusted thresholds
-      suggestions = getTemplateSuggestionsForNewUsers(events, templates, userAgeInDays);
-    } else {
-      // Existing user: use standard matching
-      suggestions = matchTemplates(events, templates);
-    }
-
-    // Limit results
-    suggestions = suggestions.slice(0, limit);
-
-    console.log(`[Template Suggestions] User ${user.id} (${userAgeInDays} days old): ${suggestions.length} suggestions from ${events.length} events`);
+    // Fallback response (automation package not available in Vercel build)
+    console.log(`[Template Suggestions] User ${user.id} (${userAgeInDays} days old): template matching disabled in this deployment`);
 
     return NextResponse.json({
-      suggestions,
+      suggestions: [],
       user_age_in_days: userAgeInDays,
       events_analyzed: events.length,
       days_analyzed: days,
       is_new_user: userAgeInDays <= 7,
+      note: 'Template suggestions temporarily disabled in this deployment',
     });
   } catch (error) {
     console.error('[Template Suggestions] Unexpected error:', error);

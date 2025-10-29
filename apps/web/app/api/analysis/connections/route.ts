@@ -6,7 +6,6 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { detectConnections } from '@observe-create/intelligence';
 
 /**
  * GET /api/analysis/connections
@@ -50,28 +49,22 @@ export async function GET(request: Request) {
   try {
     console.log(`[ConnectionsAPI] Detecting connections for user ${user.id}`);
 
-    // Detect connections using the intelligence package
-    const connections = await detectConnections(supabase, user.id);
-
-    // Group by type
-    const sequential = connections.filter(c => c.type === 'sequential');
-    const triggers = connections.filter(c => c.type === 'trigger');
-    const parallel = connections.filter(c => c.type === 'parallel');
-
+    // Fallback response (intelligence package not available in Vercel build)
     return NextResponse.json({
       success: true,
-      total: connections.length,
-      connections,
+      total: 0,
+      connections: [],
       by_type: {
-        sequential: sequential.length,
-        trigger: triggers.length,
-        parallel: parallel.length,
+        sequential: 0,
+        trigger: 0,
+        parallel: 0,
       },
       summary: {
-        sequential_workflows: sequential,
-        trigger_patterns: triggers,
-        alternative_approaches: parallel,
+        sequential_workflows: [],
+        trigger_patterns: [],
+        alternative_approaches: [],
       },
+      note: 'Pattern connections analysis temporarily disabled in this deployment',
     });
   } catch (error) {
     console.error('[ConnectionsAPI] Unexpected error:', error);

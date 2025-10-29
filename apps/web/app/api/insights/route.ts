@@ -7,7 +7,6 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { generateInsights } from '@observe-create/intelligence';
 
 /**
  * GET /api/insights
@@ -161,44 +160,12 @@ export async function POST(request: Request) {
   try {
     console.log(`[InsightsAPI] Generating insights for user ${user.id}`);
 
-    // Generate insights using the intelligence package
-    const insights = await generateInsights(supabase, user.id);
-
-    if (insights.length === 0) {
-      return NextResponse.json({
-        success: true,
-        message: 'No new insights generated. Keep browsing to build patterns!',
-        generated: 0,
-      });
-    }
-
-    // Store insights in database (remove id field, let DB generate it)
-    const { data: stored, error: insertError } = await supabase
-      .from('workflow_insights')
-      .insert(insights.map(insight => {
-        const { id, ...insightWithoutId } = insight;
-        return {
-          ...insightWithoutId,
-          user_id: user.id,
-        };
-      }))
-      .select();
-
-    if (insertError) {
-      console.error('[InsightsAPI] Error storing insights:', insertError);
-      return NextResponse.json(
-        { success: false, error: 'Failed to store insights' },
-        { status: 500 }
-      );
-    }
-
-    console.log(`[InsightsAPI] Generated and stored ${stored?.length || 0} insights`);
-
+    // Fallback response (intelligence package not available in Vercel build)
     return NextResponse.json({
       success: true,
-      message: `Generated ${stored?.length || 0} new insights`,
-      generated: stored?.length || 0,
-      insights: stored || [],
+      message: 'Insights generation temporarily disabled in this deployment',
+      generated: 0,
+      insights: [],
     });
   } catch (error) {
     console.error('[InsightsAPI] Unexpected error:', error);
