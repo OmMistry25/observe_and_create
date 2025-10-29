@@ -11,6 +11,43 @@ import { PageProfiler } from './pageProfiler';
 // Initialize Page Profiler for smart DOM extraction
 const pageProfiler = new PageProfiler();
 
+// Try to initialize Supabase immediately
+try {
+  pageProfiler.initSupabase();
+} catch (error) {
+  if (error.message?.includes('Extension context invalidated')) {
+    console.warn('[Content] Extension context invalidated during initial Supabase init');
+  } else {
+    console.warn('[Content] Failed initial Supabase init:', error);
+  }
+}
+
+// Set up periodic Supabase initialization check (every 10 seconds)
+// Only if Supabase client is not already initialized
+let initInterval: NodeJS.Timeout | null = null;
+
+function startPeriodicInit() {
+  if (initInterval) return;
+  
+  initInterval = setInterval(() => {
+    try {
+      if (!pageProfiler.supabase && chrome?.storage?.local) {
+        pageProfiler.initSupabase();
+      }
+    } catch (error) {
+      if (error.message?.includes('Extension context invalidated')) {
+        console.warn('[Content] Extension context invalidated, stopping periodic init');
+        if (initInterval) {
+          clearInterval(initInterval);
+          initInterval = null;
+        }
+      }
+    }
+  }, 10000);
+}
+
+startPeriodicInit();
+
 // Log to both extension console and page console
 console.log('[Content] Script loaded on:', window.location.href);
 window.postMessage({ type: 'EXTENSION_LOG', message: `[Content] Script loaded on: ${window.location.href}` }, '*');
@@ -459,7 +496,7 @@ function captureSemanticContext(element?: HTMLElement) {
     },
     
     // Temporal context
-    temporal: {
+    temporalContext: {
       timeOfDay: now.getHours(),
       dayOfWeek: now.getDay(),
       isWorkHours: now.getHours() >= 9 && now.getHours() <= 17 && now.getDay() >= 1 && now.getDay() <= 5,
@@ -550,10 +587,20 @@ async function captureEvent(eventData: any) {
     window.postMessage({ type: 'EXTENSION_LOG', message: patternMsg }, '*');
     
     // Notify background about detected pattern
-    chrome.runtime.sendMessage({
-      type: 'PATTERN_DETECTED',
-      pattern: detectedPattern,
-    });
+    try {
+      if (chrome?.runtime?.sendMessage) {
+        chrome.runtime.sendMessage({
+          type: 'PATTERN_DETECTED',
+          pattern: detectedPattern,
+        });
+      }
+    } catch (error) {
+      if (error.message?.includes('Extension context invalidated')) {
+        console.warn('[Content] Extension context invalidated, cannot send pattern message');
+      } else {
+        console.warn('[Content] Failed to send pattern message:', error);
+      }
+    }
   }
   
   // Log event capture to page console with semantic details
@@ -565,19 +612,39 @@ async function captureEvent(eventData: any) {
   console.log('[Content] Full semantic context:', semanticContext);
   window.postMessage({ type: 'EXTENSION_LOG', message: eventMsg }, '*');
   
-  chrome.runtime.sendMessage({
-    type: 'EVENT_CAPTURED',
-    event,
-  }, (response) => {
-    if (chrome.runtime.lastError) {
-      // Extension context invalidated - this is normal during development
-      if (chrome.runtime.lastError.message.includes('Extension context invalidated')) {
-        console.warn('[Content] Extension context invalidated - extension may have been reloaded');
-      } else {
-        console.error('[Content] Error sending event:', chrome.runtime.lastError);
-      }
-    }
+  // Debug: Check what's actually being sent
+  console.log('[Content] Event object being sent:', {
+    hasSemanticContext: !!event.semantic_context,
+    semanticContextKeys: event.semantic_context ? Object.keys(event.semantic_context) : 'none',
+    hasDocumentContext: !!event.document_context,
+    eventKeys: Object.keys(event)
   });
+  
+  try {
+    if (chrome?.runtime?.sendMessage) {
+      chrome.runtime.sendMessage({
+        type: 'EVENT_CAPTURED',
+        event,
+      }, (response) => {
+        if (chrome.runtime.lastError) {
+          // Extension context invalidated - this is normal during development
+          if (chrome.runtime.lastError.message?.includes('Extension context invalidated')) {
+            console.warn('[Content] Extension context invalidated - extension may have been reloaded');
+          } else {
+            console.error('[Content] Error sending event:', chrome.runtime.lastError);
+          }
+        }
+      });
+    } else {
+      console.warn('[Content] Chrome runtime not available, cannot send event');
+    }
+  } catch (error) {
+    if (error.message?.includes('Extension context invalidated')) {
+      console.warn('[Content] Extension context invalidated, cannot send event');
+    } else {
+      console.error('[Content] Failed to send event:', error);
+    }
+  }
 }
 
 /**
@@ -742,12 +809,41 @@ if (window.location.search) {
 
 // Listen for session from web app
 window.addEventListener('message', (event) => {
-  if (event.data.type === 'SUPABASE_SESSION') {
-    // Store session in extension storage
-    chrome.storage.local.set({ session: event.data.session }, () => {
-      console.log('[Content] Session received and stored');
-      window.postMessage({ type: 'EXTENSION_LOG', message: '[Content] Session received and stored' }, '*');
+  console.log('[Content] Received message:', event.data?.type, 'from origin:', event.origin);
+  
+  if (event.data?.type === 'SUPABASE_SESSION') {
+    console.log('[Content] Processing SUPABASE_SESSION message...');
+    console.log('[Content] Full message data:', event.data);
+    console.log('[Content] Supabase URL:', event.data.supabaseUrl);
+    console.log('[Content] Supabase Key present:', !!event.data.supabaseAnonKey);
+    
+    // Store session and Supabase config in extension storage
+    chrome.storage.local.set({ 
+      session: event.data.session,
+      supabaseUrl: event.data.supabaseUrl,
+      supabaseAnonKey: event.data.supabaseAnonKey,
+    }, () => {
+      console.log('[Content] Session and Supabase config received and stored');
+      window.postMessage({ type: 'EXTENSION_LOG', message: '[Content] Session and Supabase config received and stored' }, '*');
+      
+      // Re-initialize PageProfiler with new Supabase config
+      if (pageProfiler && typeof pageProfiler.initSupabase === 'function') {
+        pageProfiler.initSupabase();
+        console.log('[Content] PageProfiler Supabase client re-initialized');
+      } else {
+        console.warn('[Content] PageProfiler not available for re-initialization');
+      }
     });
+  } else if (event.data.type === 'REINITIALIZE_PAGEPROFILER') {
+    console.log('[Content] Processing REINITIALIZE_PAGEPROFILER message...');
+    
+    // Re-initialize PageProfiler with new Supabase config
+    if (pageProfiler && typeof pageProfiler.initSupabase === 'function') {
+      pageProfiler.initSupabase();
+      console.log('[Content] PageProfiler Supabase client re-initialized via direct message');
+    } else {
+      console.warn('[Content] PageProfiler not available for re-initialization');
+    }
   }
 });
 

@@ -9,7 +9,8 @@
   },
   "dependencies": {
     "@observe-create/schemas": "workspace:*",
-    "@observe-create/sdk": "workspace:*"
+    "@observe-create/sdk": "workspace:*",
+    "@supabase/supabase-js": "^2.39.0"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.268",

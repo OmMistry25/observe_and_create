@@ -9,7 +9,7 @@
 export async function getUserSession(): Promise<any> {
   try {
     // Try to get session from the web app's localStorage
-    const tabs = await chrome.tabs.query({ url: 'http://localhost:3000/*' });
+    const tabs = await chrome.tabs.query({ url: 'https://observeandcreate-ogvlapqej-ommistry25s-projects.vercel.app/*' });
     
     if (tabs.length === 0) {
       console.log('[Auth] No localhost tabs found');

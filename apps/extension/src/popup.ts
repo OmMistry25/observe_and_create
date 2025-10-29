@@ -70,7 +70,7 @@ toggle.addEventListener('click', () => {
 // Open dashboard
 dashboardBtn.addEventListener('click', () => {
   chrome.tabs.create({
-    url: 'http://localhost:3000/dashboard',
+    url: 'https://observeandcreate-ogvlapqej-ommistry25s-projects.vercel.app/dashboard',
   });
   window.close();
 });
@@ -78,7 +78,7 @@ dashboardBtn.addEventListener('click', () => {
 // Open settings
 settingsBtn.addEventListener('click', () => {
   chrome.tabs.create({
-    url: 'http://localhost:3000/dashboard', // TODO: Create settings page
+    url: 'https://observeandcreate-ogvlapqej-ommistry25s-projects.vercel.app/dashboard', // TODO: Create settings page
   });
   window.close();
 });
