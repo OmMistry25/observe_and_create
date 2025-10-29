@@ -48,37 +48,76 @@ export default function SyncExtensionPage() {
       // Store directly in Chrome extension storage
       if (typeof window !== 'undefined' && (window as any).chrome?.storage) {
         try {
+          console.log('[SyncExtension] Storing session directly in Chrome storage...');
           await (window as any).chrome.storage.local.set({ 
             session: session,
             supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
             supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
           });
           
+          console.log('[SyncExtension] Session stored successfully!');
+          
+          // Trigger PageProfiler re-initialization
+          window.postMessage({
+            type: 'REINITIALIZE_PAGEPROFILER',
+            session: session,
+            supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+            supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+          }, '*');
+          
           setStatus(`✅ Session stored in extension!\n\n` +
                     `User: ${session.user.email}\n` +
                     `Expires: ${new Date(session.expires_at! * 1000).toLocaleString()}\n\n` +
-                    `✅ Extension authenticated! Events will now upload to Supabase.`);
+                    `✅ Extension authenticated! Events will now upload to Supabase.\n\n` +
+                    `Check console for: "[PageProfiler] Supabase client initialized"`);
         } catch (chromeError) {
           console.error('[SyncExtension] Chrome storage error:', chromeError);
           setStatus(`⚠️ Could not access Chrome storage directly.\n\n` +
                     `Trying alternative method via content script...`);
           
           // Fallback: Send via postMessage to content script
+          console.log('[SyncExtension] Sending session via postMessage...');
+          console.log('[SyncExtension] Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
+          console.log('[SyncExtension] Supabase Key:', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'Present' : 'Missing');
+          
           window.postMessage({
             type: 'SUPABASE_SESSION',
-            session: session
+            session: session,
+            supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+            supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
           }, '*');
           
           setTimeout(() => {
             setStatus(`✅ Session sent to content script!\n\n` +
                       `User: ${session.user.email}\n\n` +
-                      `Check console for: "[Content] Session received and stored"`);
+                      `Check console for: "[Content] Session received and stored"\n\n` +
+                      `If you don't see it, try browsing to a different page first.`);
           }, 500);
         }
       } else {
-        // Fallback for non-extension context
+        // Fallback for non-extension context - try postMessage anyway
+        console.log('[SyncExtension] Chrome API not available, trying postMessage...');
+        console.log('[SyncExtension] Environment variables check:');
+        console.log('[SyncExtension] NEXT_PUBLIC_SUPABASE_URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
+        console.log('[SyncExtension] NEXT_PUBLIC_SUPABASE_ANON_KEY:', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'Present' : 'Missing');
+        
+        const messageData = {
+          type: 'SUPABASE_SESSION',
+          session: session,
+          supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+          supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+        };
+        
+        console.log('[SyncExtension] Sending message data:', messageData);
+        window.postMessage(messageData, '*');
+        
         setStatus(`⚠️ Chrome extension API not available.\n\n` +
-                  `Make sure you're running this in a browser with the extension installed.`);
+                  `Trying postMessage method...\n\n` +
+                  `User: ${session.user.email}\n\n` +
+                  `Supabase URL: ${process.env.NEXT_PUBLIC_SUPABASE_URL ? 'Present' : 'Missing'}\n` +
+                  `Supabase Key: ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'Present' : 'Missing'}\n\n` +
+                  `Check console for: "[Content] Session received and stored"\n\n` +
+                  `If you don't see it, try browsing to a different page first.`);
       }
       
       setSyncing(false);

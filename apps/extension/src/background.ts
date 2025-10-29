@@ -40,7 +40,7 @@ chrome.runtime.onInstalled.addListener((details) => {
     
     // Open onboarding page
     chrome.tabs.create({
-      url: 'https://localhost:3000/dashboard',
+      url: 'https://observeandcreate-ogvlapqej-ommistry25s-projects.vercel.app/dashboard',
     });
   }
 });
@@ -176,7 +176,15 @@ async function uploadEventBatch() {
 
   try {
     // Check session validity
-    const { session } = await chrome.storage.local.get(['session']);
+    const storage = await chrome.storage.local.get(['session', 'supabaseUrl', 'supabaseAnonKey']);
+    console.log('[Background] Storage check:', { 
+      hasSession: !!storage.session, 
+      hasUrl: !!storage.supabaseUrl, 
+      hasKey: !!storage.supabaseAnonKey,
+      sessionKeys: storage.session ? Object.keys(storage.session) : 'none'
+    });
+    
+    const { session } = storage;
     if (!session?.access_token) {
       console.log('[Background] No session found, queueing events offline');
       // T14: Store in IndexedDB for persistent offline queue
@@ -204,6 +212,12 @@ async function uploadEventBatch() {
     }
 
     // Transform events to match API schema
+    console.log('[Background] Transforming events, sample event:', {
+      hasSemanticContext: !!events[0]?.semantic_context,
+      semanticContextKeys: events[0]?.semantic_context ? Object.keys(events[0].semantic_context) : 'none',
+      hasDocumentContext: !!events[0]?.document_context
+    });
+    
     const transformedEvents = events.map(event => ({
       device_id: 'extension-device', // TODO: Generate unique device ID
       ts: event.timestamp || new Date().toISOString(),
@@ -243,9 +257,13 @@ async function uploadEventBatch() {
       dwell_ms: event.dwellMs,
       // T13: Include context array (3-5 preceding event IDs)
       context_events: event.context || [],
+      // LEVEL 1: Include semantic context
+      semantic_context: event.semantic_context || {},
+      // Issue #1: Include document context (smart DOM extraction)
+      document_context: event.document_context || null,
     }));
 
-    const response = await fetch('http://localhost:3000/api/ingest', {
+    const response = await fetch('https://observeandcreate-ogvlapqej-ommistry25s-projects.vercel.app/api/ingest', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -319,10 +337,14 @@ async function uploadBatchWithSplit(events: any[], session: any, maxBatchSize: n
       },
       dwell_ms: event.dwellMs,
       context_events: event.context || [],
+      // LEVEL 1: Include semantic context
+      semantic_context: event.semantic_context || {},
+      // Issue #1: Include document context (smart DOM extraction)
+      document_context: event.document_context || null,
     }));
 
     try {
-      const response = await fetch('http://localhost:3000/api/ingest', {
+      const response = await fetch('https://observeandcreate-ogvlapqej-ommistry25s-projects.vercel.app/api/ingest', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -375,7 +397,14 @@ async function retryStoredEvents() {
     if (queuedEvents.length === 0) return;
 
     // Check session validity
-    const { session } = await chrome.storage.local.get(['session']);
+    const storage = await chrome.storage.local.get(['session', 'supabaseUrl', 'supabaseAnonKey']);
+    console.log('[Background] Retry storage check:', { 
+      hasSession: !!storage.session, 
+      hasUrl: !!storage.supabaseUrl, 
+      hasKey: !!storage.supabaseAnonKey
+    });
+    
+    const { session } = storage;
     if (!session?.access_token) {
       console.log('[Background] No session for retry, will try again later');
       return;
@@ -422,10 +451,14 @@ async function retryStoredEvents() {
       },
       dwell_ms: event.dwellMs,
       context_events: event.context || [],
+      // LEVEL 1: Include semantic context
+      semantic_context: event.semantic_context || {},
+      // Issue #1: Include document context (smart DOM extraction)
+      document_context: event.document_context || null,
     }));
 
     // Attempt upload
-    const response = await fetch('http://localhost:3000/api/ingest', {
+    const response = await fetch('https://observeandcreate-ogvlapqej-ommistry25s-projects.vercel.app/api/ingest', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
