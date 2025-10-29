@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { searchEventsByText } from '@observe-create/ingest';
 
 /**
  * GET /api/embeddings/search?q=search+query&k=5
@@ -59,13 +58,23 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Search for similar events
-    const results = await searchEventsByText(supabase, query, k, user.id);
+    // Simple fallback: keyword search using ILIKE when embeddings util is unavailable
+    const { data, error } = await supabase
+      .from('events')
+      .select('id, title, text, url, ts')
+      .eq('user_id', user.id)
+      .or(`title.ilike.%${query}%,text.ilike.%${query}%`)
+      .limit(k);
+
+    if (error) {
+      throw error;
+    }
 
     return NextResponse.json({
       query,
-      results,
-      count: results.length,
+      results: data || [],
+      count: data?.length || 0,
+      note: 'Fallback keyword search used (embeddings module unavailable)'
     });
   } catch (error: any) {
     console.error('[Embeddings Search] Error:', error);

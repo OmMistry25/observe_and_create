@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerSupabaseClient } from '@/lib/supabase';
-import { IngestBatchSchema, IngestResponse } from '@observe-create/schemas';
-import { ZodError } from 'zod';
+import { ZodError, z } from 'zod';
 import { createClient } from '@supabase/supabase-js';
 
 /**
@@ -53,9 +51,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 2. Parse and validate request body
+    // 2. Parse and validate request body (inline schema to avoid workspace imports)
     const body = await request.json();
-    const validationResult = IngestBatchSchema.safeParse(body);
+    const EventSchema = z.object({
+      device_id: z.string().min(1),
+      ts: z.string().or(z.number()),
+      type: z.string().min(1),
+      url: z.string().min(1),
+      title: z.string().optional().nullable(),
+      dom_path: z.string().optional().nullable(),
+      text: z.string().optional().nullable(),
+      meta: z.record(z.any()).optional(),
+      dwell_ms: z.number().optional().nullable(),
+      session_id: z.string().optional().nullable(),
+      context_events: z.array(z.any()).optional(),
+      semantic_context: z.any().optional(),
+      document_context: z.any().optional(),
+      url_path: z.string().optional().nullable(),
+      domain: z.string().optional().nullable(),
+    });
+
+    const IngestBatchSchemaInline = z.object({
+      events: z.array(EventSchema).min(1),
+    });
+
+    const validationResult = IngestBatchSchemaInline.safeParse(body);
 
     if (!validationResult.success) {
       return NextResponse.json(
@@ -86,6 +106,10 @@ export async function POST(request: NextRequest) {
       dwell_ms: event.dwell_ms || null,
       session_id: event.session_id || null,
       context_events: event.context_events || [],
+      semantic_context: event.semantic_context || {},
+      document_context: event.document_context || null,
+      url_path: event.url_path || null,
+      domain: event.domain || null,
     }));
 
     const { data: insertedEvents, error: insertError } = await supabase
@@ -107,91 +131,11 @@ export async function POST(request: NextRequest) {
 
     const insertedCount = insertedEvents?.length || 0;
 
-    // 4. Classify intent and analyze events (T06.1)
-    if (insertedEvents && insertedEvents.length > 0) {
-      try {
-        const ingestModule = await import('@observe-create/ingest');
-        const analyzeEvent = ingestModule.analyzeEvent;
-        
-        if (!analyzeEvent) {
-          console.error('[Ingest] analyzeEvent function not found in module');
-          throw new Error('analyzeEvent not exported');
-        }
-        
-        // Analyze each event for intent and friction
-        const interactionQualityData = insertedEvents.map((event: any, index: number) => {
-          const eventData = events[index];
-          const analysis = analyzeEvent({
-            type: eventData.type,
-            url: eventData.url,
-            title: eventData.title,
-            text: eventData.text,
-            meta: eventData.meta,
-          });
-
-          return {
-            event_id: event.id,
-            inferred_intent: analysis.inferred_intent,
-            friction_score: analysis.friction_score,
-            success: analysis.success,
-            struggle_signals: analysis.struggle_signals,
-          };
-        });
-
-        // Insert interaction quality data
-        const { error: qualityError } = await supabase
-          .from('interaction_quality')
-          .insert(interactionQualityData);
-
-        if (qualityError) {
-          console.error('[Ingest] Error inserting interaction quality:', qualityError);
-          // Don't fail the request if quality analysis fails
-        } else {
-          console.log(`[Ingest] Analyzed ${interactionQualityData.length} events for intent`);
-        }
-      } catch (error) {
-        console.error('[Ingest] Failed to analyze events:', error);
-        // Don't fail the request if analysis fails
-      }
-    }
-
-    // 5. Generate embeddings for inserted events
-    let queuedEmbeddings = 0;
-    
-    if (insertedEvents && insertedEvents.length > 0) {
-      try {
-        // Import embedding utilities dynamically to avoid issues with Transformers.js
-        const { generateEventEmbeddingsBatch } = await import('@observe-create/ingest');
-        
-        // Prepare events for embedding
-        const eventsForEmbedding = insertedEvents.map((event: any, index: number) => ({
-          id: event.id,
-          title: events[index].title,
-          text: events[index].text,
-          url: events[index].url,
-        }));
-
-        // Generate embeddings (async, but we don't wait for completion)
-        generateEventEmbeddingsBatch(supabase, eventsForEmbedding)
-          .then((count) => {
-            console.log(`[Ingest] Generated ${count} embeddings in background`);
-          })
-          .catch((error) => {
-            console.error('[Ingest] Error generating embeddings:', error);
-          });
-
-        queuedEmbeddings = eventsForEmbedding.length;
-      } catch (error) {
-        console.error('[Ingest] Failed to queue embeddings:', error);
-        // Don't fail the request if embeddings fail
-      }
-    }
-
     // 6. Return success response
-    const response: IngestResponse = {
+    const response = {
       success: true,
       inserted: insertedCount,
-      queued_embeddings: queuedEmbeddings,
+      queued_embeddings: 0,
     };
 
     return NextResponse.json(response, { status: 200 });

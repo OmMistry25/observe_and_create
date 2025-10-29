@@ -6,8 +6,6 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { compareWorkflows, identifyFrictionCauses } from '@observe-create/intelligence';
-import type { Pattern } from '@observe-create/intelligence';
 
 /**
  * GET /api/analysis/workflows
@@ -70,15 +68,11 @@ export async function GET(request: Request) {
         );
       }
 
-      // Generate workflow comparison
-      const comparison = compareWorkflows(pattern as Pattern);
-      const frictionCauses = identifyFrictionCauses(pattern as Pattern);
-
+      // Fallback response (intelligence package not available in Vercel build)
       return NextResponse.json({
         success: true,
         pattern_id: patternId,
-        comparison,
-        friction_causes: frictionCauses,
+        note: 'Workflow analysis temporarily disabled in this deployment',
       });
     }
 
@@ -99,28 +93,11 @@ export async function GET(request: Request) {
       );
     }
 
-    // Generate comparisons for all patterns
-    const analyses = patterns.map(pattern => {
-      const comparison = compareWorkflows(pattern as Pattern);
-      const frictionCauses = identifyFrictionCauses(pattern as Pattern);
-      
-      return {
-        pattern_id: pattern.id,
-        pattern_goal: pattern.inferred_goal,
-        pattern_support: pattern.support,
-        comparison,
-        friction_causes: frictionCauses,
-        improvement_potential: comparison.improvement.efficiency_gain,
-      };
-    });
-
-    // Sort by improvement potential
-    analyses.sort((a, b) => b.improvement_potential - a.improvement_potential);
-
     return NextResponse.json({
       success: true,
-      total: analyses.length,
-      analyses,
+      total: patterns.length,
+      note: 'Workflow analysis temporarily disabled in this deployment',
+      pattern_ids: patterns.map(p => p.id),
     });
   } catch (error) {
     console.error('[WorkflowsAPI] Unexpected error:', error);
