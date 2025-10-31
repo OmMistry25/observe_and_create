@@ -229,18 +229,18 @@ type Automation = {
   user_id: string
   name: string
   description: string
-  trigger: { 
+  trigger: {
     kind: 'schedule'|'url'|'pattern'|'realtime'
-    spec: any 
+    spec: any
   }
   actions: Array<{
     kind: 'click'|'fill'|'submit'|'http'|'script'
     spec: any
     selectors: SelectorBundle  // Multi-strategy selectors
   }>
-  scope: { 
+  scope: {
     domains: string[]
-    permissions: string[] 
+    permissions: string[]
   }
   status: 'suggested'|'approved'|'active'|'paused'|'needs_repair'
   version: number
@@ -296,14 +296,14 @@ type AutomationFeedback = {
 2. **Upload**: Background batches -> signed POST to /api/ingest
 3. **Process**: API calls ingest pipeline -> normalize -> redact -> semantic analysis -> embed -> store events + embeddings + quality
 4. **Real-time**: Extension detects in-session repetition -> shows gentle nudge
-5. **Mining**: 
+5. **Mining**:
    - Nightly: Frequency miner runs via cron
    - Weekly: Temporal and semantic miners run
    - On-demand: User requests suggestions
 6. **Suggest**: Template matching + mined patterns -> candidate automations with confidence
 7. **Approve**: User reviews, edits scope, approves -> automation created
 8. **Trigger**: Schedule, URL pattern, or real-time detection triggers run
-9. **Execute**: 
+9. **Execute**:
    - Client: Extension actions with resilient selectors
    - Server: API-based runners for integrations
 10. **Validate**: Pre-run health check -> execute -> log to runs
@@ -499,7 +499,7 @@ Month 2: Highly personalized, predictive suggestions
   - Capture page content
   - Capture clipboard
 - **Domain-level controls**: Allow/deny list with wildcards
-- **Data retention**: 
+- **Data retention**:
   - Auto-delete after N days (configurable)
   - Immediate delete option
   - Export before delete
@@ -533,13 +533,13 @@ processFeedback(feedback) {
     - Mark automation for review
     - Auto-pause after 3 negative feedbacks
   }
-  
+
   if (feedback.correction) {
     - Store correction in automation_versions
     - Apply learning to similar pending suggestions
     - Update pattern scoring weights
   }
-  
+
   if (feedback.feedback === 'helpful') {
     - Increase confidence for similar patterns
     - Look for other opportunities to apply this pattern
@@ -586,7 +586,7 @@ processFeedback(feedback) {
 - **Host**: Vercel
 - **Database**: Supabase managed (Postgres + pgvector)
 - **Embeddings**: Server-side, cached
-- **Env keys**: 
+- **Env keys**:
   - Public: Supabase anon key
   - Private: Service role key, OpenAI (optional)
 
@@ -619,7 +619,7 @@ processFeedback(feedback) {
 ## 15) Scalability Strategy
 
 ### Data Volume
-- **Event ingestion**: 
+- **Event ingestion**:
   - Consider separate queue (BullMQ/Inngest) if >10K events/sec
   - Start with Supabase Realtime, monitor performance
 - **Partitioning**: Events table partitioned by day

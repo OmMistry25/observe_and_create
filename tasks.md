@@ -478,7 +478,7 @@ Scope: Passive sensing on a whitelist of domains, semantic understanding, activi
 **Phase 0-2 (Foundation + Core):** 3-4 weeks
 - Repo setup, database, basic web app, extension scaffold, sensors
 
-**Phase 3-5 (Intelligence + Real-Time):** 3-4 weeks  
+**Phase 3-5 (Intelligence + Real-Time):** 3-4 weeks
 - Pattern mining, semantic analysis, real-time detection, suggestions
 
 **Phase 6-8 (Execution + Learning):** 2-3 weeks
@@ -499,14 +499,14 @@ Scope: Passive sensing on a whitelist of domains, semantic understanding, activi
 ## Success Metrics
 
 ### MVP Launch Criteria
-- ✅ 100+ test events captured and processed without errors
-- ✅ 5+ patterns detected from synthetic test data
-- ✅ 3+ automation suggestions generated with >70% confidence
-- ✅ End-to-end automation execution with 90% success rate on test site
-- ✅ All privacy controls functional and tested
-- ✅ Extension passes Chrome Web Store review
-- ✅ Web app deployed and accessible
-- ✅ Documentation complete
+-  100+ test events captured and processed without errors
+-  5+ patterns detected from synthetic test data
+-  3+ automation suggestions generated with >70% confidence
+-  End-to-end automation execution with 90% success rate on test site
+-  All privacy controls functional and tested
+-  Extension passes Chrome Web Store review
+-  Web app deployed and accessible
+-  Documentation complete
 
 ### Post-Launch Success Metrics (3 months)
 - 1000+ active users
@@ -593,7 +593,7 @@ Scope: Passive sensing on a whitelist of domains, semantic understanding, activi
 - User testing required before moving from Phase 8 to Phase 9
 - Performance benchmarks must meet targets before deployment
 - Documentation must be complete before public launch
-  
+
 
 ## T02.1 Device Identity + Merge Logic
 - Add device_id field to events and sessions.

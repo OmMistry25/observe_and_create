@@ -10,7 +10,7 @@ This report presents key insights from analyzing your complete digital interacti
 
 ### Overall Activity
 - **Total Events**: 9,234 interactions
-- **Total Sessions**: 721 distinct browsing sessions  
+- **Total Sessions**: 721 distinct browsing sessions
 - **Average Session Length**: 12.8 events per session
 - **Median Session Length**: 5 events per session
 - **Average Session Duration**: 2.5 minutes

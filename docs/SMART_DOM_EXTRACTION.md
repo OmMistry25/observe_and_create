@@ -7,19 +7,19 @@ An intelligent, self-learning system that automatically extracts meaningful cont
 ## The Problem We Solved
 
 ### Before:
-- ❌ Every page visit triggered expensive DOM extraction
-- ❌ Couldn't differentiate between casual browsing and important work
-- ❌ LinkedIn feed scrolling treated the same as job research
-- ❌ Google Docs homepage vs specific documents - all identical
-- ❌ Hardcoded platform-specific extractors (maintenance nightmare)
+-  Every page visit triggered expensive DOM extraction
+-  Couldn't differentiate between casual browsing and important work
+-  LinkedIn feed scrolling treated the same as job research
+-  Google Docs homepage vs specific documents - all identical
+-  Hardcoded platform-specific extractors (maintenance nightmare)
 
 ### After:
-- ✅ Only extract DOM from pages visited 3+ times
-- ✅ Automatically learn page structure without hardcoding
-- ✅ Differentiate LinkedIn feed vs job postings
-- ✅ Each Google Doc gets its own learned profile
-- ✅ 70% performance improvement
-- ✅ Zero platform-specific code
+-  Only extract DOM from pages visited 3+ times
+-  Automatically learn page structure without hardcoding
+-  Differentiate LinkedIn feed vs job postings
+-  Each Google Doc gets its own learned profile
+-  70% performance improvement
+-  Zero platform-specific code
 
 ---
 
@@ -45,7 +45,7 @@ CREATE INDEX idx_events_user_path ON events(user_id, url_path);
 Tracks pages visited 3+ times in the last 30 days:
 ```sql
 CREATE MATERIALIZED VIEW frequent_subpaths AS
-SELECT 
+SELECT
   user_id,
   url_path,
   COUNT(*) as visit_count,
@@ -88,16 +88,16 @@ interface PageProfile {
 // Extension: content.ts
 async function captureEvent(eventData) {
   const urlPath = normalizeUrl(window.location.href);
-  
+
   // Check if this page is visited frequently
   const shouldExtractDOM = await pageProfiler.shouldProfile(urlPath);
-  
+
   if (shouldExtractDOM) {
-    // ✅ Extract DOM - this page matters!
+    //  Extract DOM - this page matters!
     const profile = await pageProfiler.getOrCreateProfile(urlPath);
     event.document_context = pageProfiler.extractUsingProfile(profile);
   } else {
-    // ⏭️  Skip - first time or infrequent visit
+    //   Skip - first time or infrequent visit
     event.document_context = null;
   }
 }
@@ -112,26 +112,26 @@ User visits multiple LinkedIn pages throughout the day.
 
 **Without Smart Extraction:**
 ```
-linkedin.com/feed                 → DOM extracted ❌ (timepass)
-linkedin.com/jobs/view/123456     → DOM extracted ❌ (1st visit)
-linkedin.com/jobs/view/123456     → DOM extracted ❌ (2nd visit)
-linkedin.com/jobs/view/123456     → DOM extracted ✅ (3rd visit)
-linkedin.com/jobs/view/789012     → DOM extracted ❌ (different job)
-linkedin.com/in/john-doe          → DOM extracted ❌ (random profile)
+linkedin.com/feed                 → DOM extracted  (timepass)
+linkedin.com/jobs/view/123456     → DOM extracted  (1st visit)
+linkedin.com/jobs/view/123456     → DOM extracted  (2nd visit)
+linkedin.com/jobs/view/123456     → DOM extracted  (3rd visit)
+linkedin.com/jobs/view/789012     → DOM extracted  (different job)
+linkedin.com/in/john-doe          → DOM extracted  (random profile)
 ```
 
 **With Smart Extraction:**
 ```
-linkedin.com/feed                 → Visit 1: Skip ⏭️
-linkedin.com/feed                 → Visit 2: Skip ⏭️
-linkedin.com/feed                 → Visit 47: Skip ⏭️  (never extracts - timepass!)
+linkedin.com/feed                 → Visit 1: Skip
+linkedin.com/feed                 → Visit 2: Skip
+linkedin.com/feed                 → Visit 47: Skip   (never extracts - timepass!)
 
-linkedin.com/jobs/view/123456     → Visit 1: Skip ⏭️
-linkedin.com/jobs/view/123456     → Visit 2: Skip ⏭️
-linkedin.com/jobs/view/123456     → Visit 3: Extract ✅ Learn: job title, company, salary
-linkedin.com/jobs/view/123456     → Visit 8: Extract ✅ (still important)
+linkedin.com/jobs/view/123456     → Visit 1: Skip
+linkedin.com/jobs/view/123456     → Visit 2: Skip
+linkedin.com/jobs/view/123456     → Visit 3: Extract  Learn: job title, company, salary
+linkedin.com/jobs/view/123456     → Visit 8: Extract  (still important)
 
-linkedin.com/jobs/collections/saved → Visit 3: Extract ✅ (frequently visited)
+linkedin.com/jobs/collections/saved → Visit 3: Extract  (frequently visited)
 ```
 
 **Result:** System understands you're job hunting, not just scrolling!
@@ -255,21 +255,21 @@ if (/essay|thesis|abstract/.test(text)) {
 
 ## Testing Checklist
 
-### ✅ Database
+###  Database
 - [x] Migration 16 (url_path) applies cleanly
 - [x] url_path auto-populated via trigger
 - [x] Indexes created successfully
 - [ ] frequent_subpaths view populates (requires events)
 - [ ] page_profiles table created with RLS
 
-### ✅ Extension
+###  Extension
 - [x] PageProfiler class created
 - [x] Frequency tracking works
 - [x] DOM extraction triggers at 3+ visits
 - [x] Profiles stored in IndexedDB
 - [ ] Test with real browsing
 
-### ✅ API
+###  API
 - [x] /api/analysis/frequent-subpaths endpoint created
 - [ ] Returns correct data (needs events)
 - [ ] Insights generation works
@@ -313,7 +313,7 @@ feat(extension): add PageProfiler for smart adaptive DOM extraction
 feat(api): add frequent-subpaths analysis endpoint
 ```
 
-**Branch:** `feature/1-smart-dom-extraction`  
+**Branch:** `feature/1-smart-dom-extraction`
 **Issue:** [#1](https://github.com/OmMistry25/observe_and_create/issues/1)
 
 ---
@@ -328,5 +328,5 @@ feat(api): add frequent-subpaths analysis endpoint
 
 ---
 
-**Status:** ✅ Implementation complete, ready for testing!
+**Status:**  Implementation complete, ready for testing!
 
