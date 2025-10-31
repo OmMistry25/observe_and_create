@@ -83,7 +83,7 @@ Follow these steps to load the Observe & Create extension in Chrome for developm
 - Check Background service worker console
 
 ### Changes not showing
-- Click the refresh icon (🔄) on the extension card in `chrome://extensions/`
+- Click the refresh icon () on the extension card in `chrome://extensions/`
 - Or remove and re-add the extension
 
 ## Next Steps
@@ -99,7 +99,7 @@ After loading:
 While developing:
 1. Make changes to extension code
 2. Run `pnpm build` in `apps/extension`
-3. Click refresh (🔄) in `chrome://extensions/`
+3. Click refresh () in `chrome://extensions/`
 4. Test changes
 
 Or use watch mode:

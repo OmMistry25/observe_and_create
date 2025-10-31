@@ -144,10 +144,10 @@ pnpm db:push
    - RLS is blocking queries (this is correct behavior!)
 
 **What RLS does:**
-- ✅ Users can only access their own data
-- ✅ Anonymous clients are blocked from reading any data
-- ✅ All tables enforce `auth.uid()` checks
-- ✅ Pattern templates are public (read-only) for all authenticated users
+-  Users can only access their own data
+-  Anonymous clients are blocked from reading any data
+-  All tables enforce `auth.uid()` checks
+-  Pattern templates are public (read-only) for all authenticated users
 
 ---
 
@@ -157,20 +157,20 @@ pnpm db:push
 
 ### What's Included
 
-✅ **Authentication Pages**
+ **Authentication Pages**
 - `/auth/signup` - Email/password registration
 - `/auth/signin` - Email/password login
 
-✅ **Protected Routes**
+ **Protected Routes**
 - `/dashboard` - Main dashboard with Activity Feed, Patterns, and Automations sections
 - Client-side authentication guards
 
-✅ **UI Components**
+ **UI Components**
 - shadcn/ui components (Button, Card, Input)
 - Tailwind CSS styling
 - Responsive layout
 
-✅ **Supabase Configuration**
+ **Supabase Configuration**
 - Email confirmation disabled for development
 - Profile creation on signup
 - Session management with cookies
@@ -197,18 +197,18 @@ pnpm dev
 
 ### What's Included
 
-✅ **Event Validation Schemas**
+ **Event Validation Schemas**
 - Zod schemas in `packages/schemas` for event validation
 - Support for 8 event types: click, search, form, nav, focus, blur, idle, error
 - Batch validation (1-100 events per request)
 
-✅ **API Route**
+ **API Route**
 - POST `/api/ingest` endpoint with authentication
 - Validates events against schema
 - Inserts events into database
 - Returns success/error responses with details
 
-✅ **Test UI**
+ **Test UI**
 - `/test-ingest` page to test valid and invalid payloads
 - Shows request/response for debugging
 
@@ -234,7 +234,7 @@ pnpm dev
 
 ### API Documentation
 
-See `apps/web/API.md` for full API documentation.
+See [API Documentation](../docs/API.md) for full API documentation.
 
 ---
 
@@ -242,27 +242,27 @@ See `apps/web/API.md` for full API documentation.
 
 ### What's Included
 
-✅ **Local Embedding Model**
+ **Local Embedding Model**
 - Uses `@xenova/transformers` (Transformers.js) for privacy-first local processing
 - `all-MiniLM-L6-v2` model (384-dimensional vectors)
 - No external API calls - runs entirely in Node.js
 
-✅ **Embedding Utilities** (`packages/ingest/src/embeddings.ts`)
+ **Embedding Utilities** (`packages/ingest/src/embeddings.ts`)
 - Generate embeddings for single or batch texts
 - Extract searchable text from events (title + text + URL)
 - Cosine similarity calculation for vector comparison
 
-✅ **Database Integration** (`packages/ingest/src/db.ts`)
+ **Database Integration** (`packages/ingest/src/db.ts`)
 - Store embeddings in `event_embeddings` table (as JSONB)
 - Batch embedding generation
 - kNN similarity search
 
-✅ **API Integration**
+ **API Integration**
 - `/api/ingest` automatically generates embeddings after inserting events
 - `/api/embeddings/search` - semantic search endpoint
 - Embeddings generated asynchronously (non-blocking)
 
-✅ **Test UI** (`/test-embeddings`)
+ **Test UI** (`/test-embeddings`)
 - Search for similar events using semantic similarity
 - Visual display of similarity scores
 - Test semantic understanding
@@ -315,26 +315,26 @@ See `apps/web/API.md` for full API documentation.
 
 ### What's Included
 
-✅ **Events API** (`/api/events`)
+ **Events API** (`/api/events`)
 - GET endpoint with pagination
 - Filter by domain, type, and intent
 - RLS automatically enforced
 - Returns events with interaction_quality data
 
-✅ **Activity Feed UI** (`/dashboard`)
+ **Activity Feed UI** (`/dashboard`)
 - Table view of recent events
 - Event type and intent badges
 - Friction score indicators
 - Formatted timestamps and dwell times
 - Domain extraction from URLs
 
-✅ **Filtering**
+ **Filtering**
 - Domain filter (partial match)
 - Type filter (8 event types)
 - Intent filter (6 intent categories)
 - Real-time filter application
 
-✅ **Pagination**
+ **Pagination**
 - Page-based navigation
 - 20 events per page
 - Previous/Next buttons
@@ -370,7 +370,7 @@ See `apps/web/API.md` for full API documentation.
   - Blue badge: Event type
   - Green badge: Inferred intent
   - Red badge: High friction score
-  
+
 - **Event Details**:
   - Title or domain name
   - Full domain
@@ -388,20 +388,20 @@ See `apps/web/API.md` for full API documentation.
 
 ### What's Included
 
-✅ **Timeline API** (`/api/analytics/timeline`)
+ **Timeline API** (`/api/analytics/timeline`)
 - Aggregates dwell time by hour
 - Groups by domain with intent breakdown
 - Configurable time window (default 24h, max 7 days)
 - Returns top 5 domains by dwell time
 
-✅ **Interactive Chart** (`TimelineChart` component)
+ **Interactive Chart** (`TimelineChart` component)
 - Stacked area chart using Recharts
 - Shows dwell time per domain over time
 - Color-coded domains (top 5)
 - Formatted time labels and durations
 - Responsive design
 
-✅ **Dashboard Integration**
+ **Dashboard Integration**
 - Timeline chart at top of dashboard
 - 24-hour aggregation by default
 - Empty state with helpful message
@@ -449,35 +449,35 @@ See `apps/web/API.md` for full API documentation.
 
 ### What's Included
 
-✅ **MV3 Manifest** (`manifest.json`)
+ **MV3 Manifest** (`manifest.json`)
 - Manifest Version 3 configuration
 - Permissions: storage, tabs, activeTab, scripting
 - Host permissions for all URLs
 - Content scripts and background service worker
 - Popup configuration
 
-✅ **Background Service Worker** (`src/background.ts`)
+ **Background Service Worker** (`src/background.ts`)
 - Extension lifecycle management
 - Message passing between components
 - Tab tracking for dwell time
 - Settings management
 - Keep-alive mechanism
 
-✅ **Content Script** (`src/content.ts`)
+ **Content Script** (`src/content.ts`)
 - Injected into all pages
 - Captures clicks, forms, navigation
 - Tracks page visibility for dwell time
 - Extracts DOM paths
 - Detects search queries
 
-✅ **Popup UI** (`src/popup.html` + `src/popup.ts`)
+ **Popup UI** (`src/popup.html` + `src/popup.ts`)
 - Enable/disable toggle
 - Activity stats display
 - Quick dashboard access
 - Settings link
 - Modern, clean design
 
-✅ **Build System** (Vite)
+ **Build System** (Vite)
 - Multi-entry point build
 - Automatic file copying
 - ES modules output
@@ -538,24 +538,24 @@ See `apps/extension/LOADING.md` for detailed instructions.
 
 ### What's Included
 
-✅ **Onboarding Flow** (`/onboarding`)
+ **Onboarding Flow** (`/onboarding`)
 - 3-step consent process
 - Data collection category selection
 - Privacy settings configuration
 - Clear explanations of what's collected
 
-✅ **Settings Page** (`/settings`)
+ **Settings Page** (`/settings`)
 - Manage consent preferences
 - Update data collection categories
 - Configure privacy settings
 - Delete all data option
 
-✅ **Consent Storage** (Database)
+ **Consent Storage** (Database)
 - `consent_data` JSONB column in profiles
 - `consent_given_at` timestamp
 - Structured consent preferences
 
-✅ **Dashboard Integration**
+ **Dashboard Integration**
 - Consent check on dashboard load
 - Redirect to onboarding if no consent
 - Settings button in dashboard header
@@ -566,7 +566,7 @@ Run this SQL in your Supabase SQL editor:
 
 ```sql
 -- Add consent support to profiles table
-ALTER TABLE profiles 
+ALTER TABLE profiles
 ADD COLUMN IF NOT EXISTS consent_data JSONB,
 ADD COLUMN IF NOT EXISTS consent_given_at TIMESTAMPTZ;
 
@@ -617,33 +617,33 @@ CREATE INDEX IF NOT EXISTS idx_profiles_consent_given_at ON profiles(consent_giv
 
 ### What's Included
 
-✅ **Extension → Server Integration**
+ **Extension → Server Integration**
 - Event upload to `/api/ingest` endpoint
 - Authentication using user session tokens
 - Event batching (10 events per batch)
 - Automatic retry for failed uploads
 - Offline storage for events when disconnected
 
-✅ **Enhanced Event Capture**
+ **Enhanced Event Capture**
 - Detailed click tracking with DOM paths
 - Form field information extraction
 - Element attributes (href, src, alt, title, etc.)
 - Click position coordinates
 - Enhanced search query detection
 
-✅ **Authentication System**
+ **Authentication System**
 - Session retrieval from web app
 - Token validation and refresh
 - Extension popup shows auth status
 - Automatic session management
 
-✅ **Event Queuing & Batching**
+ **Event Queuing & Batching**
 - Local event queue (10 events per batch)
 - Periodic upload every 30 seconds
 - Offline storage for failed uploads
 - Retry mechanism for stored events
 
-✅ **Test Page** (`/test-extension`)
+ **Test Page** (`/test-extension`)
 - Interactive elements for testing
 - Real-time event display
 - Debug information and console logs
@@ -778,7 +778,7 @@ All friction events include rich metadata:
 - `loadTime`, `dns`, `tcp`, `request`, `render`: For slow loads
 - `clickCount`, `element`: For rage clicks
 
-Friction detection helps identify pain points in user workflows! 🎯
+Friction detection helps identify pain points in user workflows!
 
 ### Applying the Migration
 
@@ -788,10 +788,10 @@ Run the following SQL in your Supabase SQL Editor:
 -- Add 'friction' event type to the events table
 ALTER TABLE events DROP CONSTRAINT IF EXISTS events_type_check;
 
-ALTER TABLE events ADD CONSTRAINT events_type_check 
+ALTER TABLE events ADD CONSTRAINT events_type_check
   CHECK (type IN ('click', 'search', 'form', 'nav', 'focus', 'blur', 'idle', 'error', 'friction'));
 
-COMMENT ON CONSTRAINT events_type_check ON events IS 
+COMMENT ON CONSTRAINT events_type_check ON events IS
   'Valid event types including friction detection (T11.1)';
 ```
 
@@ -874,7 +874,7 @@ The pattern miner:
 - **Support**: Number of times pattern occurs
 - **Confidence**: Pattern occurrences / first event occurrences
 
-Pattern detection unlocks workflow insights and automation suggestions! 🎯
+Pattern detection unlocks workflow insights and automation suggestions!
 
 ---
 
@@ -884,12 +884,12 @@ The system now includes 15 pre-built workflow templates for common automation pa
 
 ### What Changed
 
-✅ **Workflow Templates** (`infra/supabase/supabase/migrations/20240101000004_workflow_templates.sql`)
+ **Workflow Templates** (`infra/supabase/supabase/migrations/20240101000004_workflow_templates.sql`)
 - 15 common workflow templates inserted into `pattern_templates` table
 - Templates cover data transfer, monitoring, content creation, and more
 - Each template includes event sequence, category, and tags
 
-✅ **Template API** (`apps/web/app/api/templates/route.ts`)
+ **Template API** (`apps/web/app/api/templates/route.ts`)
 - GET endpoint to retrieve templates
 - Filter by category or tags
 - Public read-only access for authenticated users
@@ -1043,13 +1043,13 @@ The system now includes a nightly job to automatically mine frequent patterns fr
 
 ### What Changed
 
-✅ **Pattern Miner Edge Function** (`infra/supabase/supabase/functions/pattern-miner/index.ts`)
+ **Pattern Miner Edge Function** (`infra/supabase/supabase/functions/pattern-miner/index.ts`)
 - Supabase Edge Function for pattern mining
 - Groups events by contiguous domain sequences
 - Mines 3-5 step patterns with support threshold (3+ occurrences)
 - Stores patterns in `patterns` table with support and confidence scores
 
-✅ **Cron Job Setup** (`infra/supabase/supabase/migrations/20240101000005_pattern_miner_cron.sql`)
+ **Cron Job Setup** (`infra/supabase/supabase/migrations/20240101000005_pattern_miner_cron.sql`)
 - Enables `pg_cron` extension
 - Creates `invoke_pattern_miner()` function
 - Creates `mine_patterns_sql()` function (SQL-only alternative)
@@ -1136,13 +1136,13 @@ You can manually trigger pattern mining without waiting for the cron job:
        process.env.NEXT_PUBLIC_SUPABASE_URL!,
        process.env.SUPABASE_SERVICE_ROLE_KEY!
      );
-     
+
      const { data, error } = await supabase.rpc('mine_patterns_sql');
-     
+
      if (error) {
        return NextResponse.json({ error: error.message }, { status: 500 });
      }
-     
+
      return NextResponse.json({ success: true, result: data });
    }
    ```
@@ -1152,7 +1152,7 @@ You can manually trigger pattern mining without waiting for the cron job:
 After mining, you'll see patterns like:
 
 ```sql
-SELECT 
+SELECT
   pattern_sequence,
   support,
   confidence,
@@ -1178,8 +1178,8 @@ Each pattern is stored as an array of strings:
 - Format: `{type}:{domain}`
 - Example: `["click:github.com", "nav:github.com", "click:readme"]`
 
-**Support**: Number of times the pattern appears  
-**Confidence**: Probability of the pattern (support / total sequences)  
+**Support**: Number of times the pattern appears
+**Confidence**: Probability of the pattern (support / total sequences)
 **Frequency**: Cumulative count across all mining runs
 
 ### Monitoring
@@ -1202,7 +1202,7 @@ Each pattern is stored as an array of strings:
 
 3. **Pattern statistics**:
    ```sql
-   SELECT 
+   SELECT
      COUNT(*) as total_patterns,
      AVG(support) as avg_support,
      MAX(support) as max_support,
@@ -1244,25 +1244,25 @@ The system now matches user activity against pre-built templates to suggest auto
 
 ### What Changed
 
-✅ **Template Matching Module** (`packages/automation/src/template-matching.ts`)
+ **Template Matching Module** (`packages/automation/src/template-matching.ts`)
 - Fuzzy matching algorithm for event sequences
 - Confidence scoring based on support and coverage
 - Adjusted thresholds for new users (day 1-7)
 - Pattern matching with domain, URL, text, and type filters
 
-✅ **Suggestions API** (`apps/web/app/api/templates/suggestions/route.ts`)
+ **Suggestions API** (`apps/web/app/api/templates/suggestions/route.ts`)
 - GET endpoint to get personalized template suggestions
 - Analyzes user's last 7 days of activity
 - Adjusts confidence thresholds for new users
 - Returns top 5 suggestions by default
 
-✅ **Template Suggestions Component** (`apps/web/components/TemplateSuggestions.tsx`)
+ **Template Suggestions Component** (`apps/web/components/TemplateSuggestions.tsx`)
 - Displays automation suggestions on dashboard
 - Shows match confidence and category
 - "New User Mode" badge for day 1-7 users
 - Action button to create automations (placeholder)
 
-✅ **Dashboard Integration** (`apps/web/app/dashboard/page.tsx`)
+ **Dashboard Integration** (`apps/web/app/dashboard/page.tsx`)
 - Template suggestions appear below timeline chart
 - Updates automatically when dashboard loads
 
@@ -1321,7 +1321,7 @@ The system now matches user activity against pre-built templates to suggest auto
    ```javascript
    const supabase = createBrowserClient();
    const { data: { session } } = await supabase.auth.getSession();
-   
+
    fetch('/api/templates/suggestions?limit=5', {
      headers: { 'Authorization': `Bearer ${session.access_token}` }
    }).then(r => r.json()).then(console.log);
@@ -1329,7 +1329,7 @@ The system now matches user activity against pre-built templates to suggest auto
 
 3. **View on Dashboard**:
    - Go to `http://localhost:3000/dashboard`
-   - Look for "💡 Automation Suggestions" card
+   - Look for " Automation Suggestions" card
    - Should appear below timeline chart
 
 4. **Test with sparse data** (new user):
@@ -1387,13 +1387,13 @@ Events are now automatically analyzed for intent classification and friction det
 
 ### What Changed
 
-✅ **Semantic Module** (`packages/ingest/src/semantic.ts`)
+ **Semantic Module** (`packages/ingest/src/semantic.ts`)
 - Intent classification using rule-based patterns
 - Friction score calculation (0-1 scale)
 - Success/failure detection
 - Struggle signal identification
 
-✅ **Intent Categories**
+ **Intent Categories**
 - `research`: Browsing, searching, learning
 - `transaction`: Purchasing, checkout, payments
 - `comparison`: Comparing products/services
@@ -1401,13 +1401,13 @@ Events are now automatically analyzed for intent classification and friction det
 - `communication`: Email, chat, messaging
 - `unknown`: Unclassified activity
 
-✅ **Ingest Pipeline** (`apps/web/app/api/ingest/route.ts`)
+ **Ingest Pipeline** (`apps/web/app/api/ingest/route.ts`)
 - Automatically classifies intent for every event
 - Calculates friction score based on event metadata
 - Stores results in `interaction_quality` table
 - Non-blocking: doesn't fail if classification fails
 
-✅ **API Integration** (`apps/web/app/api/events/route.ts`)
+ **API Integration** (`apps/web/app/api/events/route.ts`)
 - Events now include `interaction_quality` data
 - Intent filters work correctly in dashboard
 - Friction scores available for analysis
@@ -1501,17 +1501,17 @@ Events now include context arrays with IDs of 3-5 preceding events, enabling bet
 
 ### What Changed
 
-✅ **Content Script** (`apps/extension/src/content.ts`)
+ **Content Script** (`apps/extension/src/content.ts`)
 - Tracks last 5 events in memory (FIFO buffer)
 - Generates unique IDs for each event (timestamp + type + random)
 - Includes `context` array with IDs of preceding events
 - Each event knows what came before it
 
-✅ **Background Script** (`apps/extension/src/background.ts`)
+ **Background Script** (`apps/extension/src/background.ts`)
 - Passes `context` array to API as `context_events`
 - Stores event IDs in metadata for reference
 
-✅ **Schema** (`packages/schemas/src/events.ts`)
+ **Schema** (`packages/schemas/src/events.ts`)
 - Already included `context_events` field (optional array of strings)
 
 ### How It Works
@@ -1574,13 +1574,13 @@ The extension now uses IndexedDB for persistent event storage with exponential b
 
 ### What Changed
 
-✅ **Offline Queue Module** (`apps/extension/src/offline-queue.ts`)
+ **Offline Queue Module** (`apps/extension/src/offline-queue.ts`)
 - IndexedDB wrapper for persistent event storage
 - Two object stores: `event_queue` and `retry_metadata`
 - Events survive browser restarts and extension reloads
 - Indexes on `nextRetryAt` and `timestamp` for efficient queries
 
-✅ **Background Script** (`apps/extension/src/background.ts`)
+ **Background Script** (`apps/extension/src/background.ts`)
 - Uses IndexedDB instead of chrome.storage for event queue
 - Implements exponential backoff: 2^retryCount seconds (max 1 hour)
 - Respects retry timing - only attempts events when `nextRetryAt <= now`
@@ -1668,23 +1668,23 @@ Enhanced upload transport with batch size control and 413 error handling.
 
 ### What Changed
 
-✅ **Batch Size Validation**
+ **Batch Size Validation**
 - Checks if batch exceeds 100 events (API limit)
 - Automatically splits large batches before upload
 - Prevents API rejections proactively
 
-✅ **413 Error Handling** (`apps/extension/src/background.ts`)
+ **413 Error Handling** (`apps/extension/src/background.ts`)
 - Detects `413 Payload Too Large` responses
 - Automatically splits batch and retries
 - Recursive splitting: 50 → 25 → 12 → 6 (min 10)
 - Each chunk uploaded with small delay (100ms)
 
-✅ **Payload Size Estimation**
+ **Payload Size Estimation**
 - `estimatePayloadSize()` function to approximate request size
 - Helps decide if batch should be split preemptively
 - Prevents unnecessary API calls
 
-✅ **uploadBatchWithSplit()** Function
+ **uploadBatchWithSplit()** Function
 - Handles automatic batch splitting
 - Recursive retry with smaller batch sizes
 - Falls back to offline queue if still failing
@@ -1782,13 +1782,13 @@ The system now includes a nightly job to automatically mine frequent patterns fr
 
 ### What Changed
 
-✅ **Pattern Miner Edge Function** (`infra/supabase/supabase/functions/pattern-miner/index.ts`)
+ **Pattern Miner Edge Function** (`infra/supabase/supabase/functions/pattern-miner/index.ts`)
 - Supabase Edge Function for pattern mining
 - Groups events by contiguous domain sequences
 - Mines 3-5 step patterns with support threshold (3+ occurrences)
 - Stores patterns in `patterns` table with support and confidence scores
 
-✅ **Cron Job Setup** (`infra/supabase/supabase/migrations/20240101000005_pattern_miner_cron.sql`)
+ **Cron Job Setup** (`infra/supabase/supabase/migrations/20240101000005_pattern_miner_cron.sql`)
 - Enables `pg_cron` extension
 - Creates `invoke_pattern_miner()` function
 - Creates `mine_patterns_sql()` function (SQL-only alternative)
@@ -1870,13 +1870,13 @@ You can manually trigger pattern mining without waiting for the cron job:
        process.env.NEXT_PUBLIC_SUPABASE_URL!,
        process.env.SUPABASE_SERVICE_ROLE_KEY!
      );
-     
+
      const { data, error } = await supabase.rpc('mine_patterns_sql');
-     
+
      if (error) {
        return NextResponse.json({ error: error.message }, { status: 500 });
      }
-     
+
      return NextResponse.json({ success: true, result: data });
    }
    ```
@@ -1886,7 +1886,7 @@ You can manually trigger pattern mining without waiting for the cron job:
 After mining, you'll see patterns like:
 
 ```sql
-SELECT 
+SELECT
   sequence,
   support,
   confidence,
@@ -1912,8 +1912,8 @@ Each pattern is stored as JSONB array containing event objects:
 - Format: Array of event objects with `id`, `ts`, `url`, `type`, `user_id`, etc.
 - Example: `[{"id": "...", "type": "click", "url": "https://..."}]`
 
-**Support**: Number of times the pattern appears  
-**Confidence**: Probability of the pattern (support / total sequences)  
+**Support**: Number of times the pattern appears
+**Confidence**: Probability of the pattern (support / total sequences)
 **Pattern Type**: 'frequency' for T17 miner
 
 ### Monitoring
@@ -1936,7 +1936,7 @@ Each pattern is stored as JSONB array containing event objects:
 
 3. **Pattern statistics**:
    ```sql
-   SELECT 
+   SELECT
      COUNT(*) as total_patterns,
      AVG(support) as avg_support,
      MAX(support) as max_support,
@@ -2031,7 +2031,7 @@ clusters_created | patterns_updated
 
 ```sql
 -- View patterns with their cluster assignments
-SELECT 
+SELECT
   semantic_cluster_id,
   COUNT(*) as pattern_count,
   AVG(support) as avg_support,
@@ -2090,7 +2090,7 @@ LIMIT 5;
 
 1. **Total clusters per user**:
    ```sql
-   SELECT 
+   SELECT
      user_id,
      COUNT(DISTINCT semantic_cluster_id) as cluster_count,
      COUNT(*) as total_patterns
@@ -2101,7 +2101,7 @@ LIMIT 5;
 
 2. **Cluster size distribution**:
    ```sql
-   SELECT 
+   SELECT
      COUNT(*) as patterns_in_cluster,
      COUNT(*) as num_clusters
    FROM (
@@ -2261,7 +2261,7 @@ SELECT * FROM find_high_friction_patterns();
 **View automation suggestions with friction flags**:
 
 ```sql
-SELECT 
+SELECT
   pattern_id,
   suggestion_priority,
   reduce_friction_flag,
@@ -2284,7 +2284,7 @@ LIMIT 10;
 Patterns are prioritized for automation based on:
 
 1. **High Priority**: friction ≥0.7 AND support ≥5
-2. **Medium Priority**: 
+2. **Medium Priority**:
    - friction ≥0.6 AND support ≥10, OR
    - confidence ≥0.8 AND support ≥15
 3. **Low Priority**: All others
@@ -2302,7 +2302,7 @@ The views are designed to power dashboard widgets:
 
 **Friction Heatmap**:
 ```sql
-SELECT 
+SELECT
   url,
   event_type,
   high_friction_events,
@@ -2315,7 +2315,7 @@ LIMIT 20;
 
 **Top Automation Opportunities**:
 ```sql
-SELECT 
+SELECT
   suggestion_payload->>'name' as automation_name,
   suggestion_payload->>'description' as description,
   suggestion_priority,
@@ -2323,7 +2323,7 @@ SELECT
   support
 FROM automation_suggestions_with_friction
 WHERE reduce_friction_flag = true
-ORDER BY 
+ORDER BY
   CASE suggestion_priority
     WHEN 'high' THEN 1
     WHEN 'medium' THEN 2

@@ -1,10 +1,10 @@
 # Phase 1 Testing Guide
 
-## 🎯 Overview
+##  Overview
 
 This guide provides comprehensive testing instructions for Phase 1: Smart Adaptive Context Extraction. The test suite covers database functionality, extension behavior, API endpoints, and end-to-end workflows.
 
-## 🚀 Quick Start
+##  Quick Start
 
 ### 1. Setup Test Environment
 
@@ -32,69 +32,69 @@ After automated tests pass, follow the manual verification checklist in the scri
 
 ---
 
-## 📋 Test Categories
+##  Test Categories
 
 ### 1. Database Tests (`tests/database/`)
 
 **Purpose**: Verify database schema, triggers, and materialized views.
 
 #### URL Path Tests (`url-path.test.ts`)
-- ✅ Auto-population of `url_path` from `url` field
-- ✅ Normalization removes query parameters and hash
-- ✅ Handles edge cases (root paths, malformed URLs)
-- ✅ Indexing works efficiently
+-  Auto-population of `url_path` from `url` field
+-  Normalization removes query parameters and hash
+-  Handles edge cases (root paths, malformed URLs)
+-  Indexing works efficiently
 
 #### Page Profiles Tests (`page-profiles.test.ts`)
-- ✅ CRUD operations on `page_profiles` table
-- ✅ Auto-update timestamps on profile changes
-- ✅ RLS policies prevent unauthorized access
-- ✅ Query performance with large datasets
+-  CRUD operations on `page_profiles` table
+-  Auto-update timestamps on profile changes
+-  RLS policies prevent unauthorized access
+-  Query performance with large datasets
 
 #### Frequent Subpaths Tests (`frequent-subpaths.test.ts`)
-- ✅ Materialized view populates correctly
-- ✅ Only includes paths with 3+ visits
-- ✅ Time span calculations are accurate
-- ✅ Refresh function works properly
+-  Materialized view populates correctly
+-  Only includes paths with 3+ visits
+-  Time span calculations are accurate
+-  Refresh function works properly
 
 ### 2. Extension Tests (`tests/extension/`)
 
 **Purpose**: Test PageProfiler class functionality in isolation.
 
 #### PageProfiler Tests (`page-profiler.test.ts`)
-- ✅ URL normalization logic
-- ✅ Platform detection (Google Docs, GitHub, etc.)
-- ✅ DOM structure analysis
-- ✅ Content signal detection
-- ✅ Extraction rule generation
-- ✅ Profile creation and retrieval
-- ✅ Content classification
-- ✅ Error handling
+-  URL normalization logic
+-  Platform detection (Google Docs, GitHub, etc.)
+-  DOM structure analysis
+-  Content signal detection
+-  Extraction rule generation
+-  Profile creation and retrieval
+-  Content classification
+-  Error handling
 
 ### 3. API Tests (`tests/api/`)
 
 **Purpose**: Verify API endpoints handle requests correctly.
 
 #### Frequent Subpaths API Tests (`frequent-subpaths.test.ts`)
-- ✅ Authentication required (401 for missing tokens)
-- ✅ Returns correct data structure
-- ✅ Handles query parameters (min_visits)
-- ✅ Generates meaningful insights
-- ✅ Error scenarios handled gracefully
+-  Authentication required (401 for missing tokens)
+-  Returns correct data structure
+-  Handles query parameters (min_visits)
+-  Generates meaningful insights
+-  Error scenarios handled gracefully
 
 ### 4. End-to-End Tests (`tests/e2e/`)
 
 **Purpose**: Test complete user workflows from event capture to insights.
 
 #### Phase 1 Integration Tests (`phase1-integration.test.ts`)
-- ✅ Complete user journey simulation
-- ✅ Data flows through all components
-- ✅ Performance with large datasets
-- ✅ Edge cases and error scenarios
-- ✅ Data consistency across operations
+-  Complete user journey simulation
+-  Data flows through all components
+-  Performance with large datasets
+-  Edge cases and error scenarios
+-  Data consistency across operations
 
 ---
 
-## 🔧 Manual Testing Steps
+##  Manual Testing Steps
 
 ### 1. Database Verification
 
@@ -102,11 +102,11 @@ Run these queries in Supabase SQL Editor:
 
 ```sql
 -- Check url_path column is populated
-SELECT url, url_path, COUNT(*) as count 
-FROM events 
-WHERE url_path IS NOT NULL 
-GROUP BY url, url_path 
-ORDER BY count DESC 
+SELECT url, url_path, COUNT(*) as count
+FROM events
+WHERE url_path IS NOT NULL
+GROUP BY url, url_path
+ORDER BY count DESC
 LIMIT 10;
 
 -- Check page_profiles table
@@ -133,7 +133,7 @@ SELECT refresh_frequent_subpaths();
 
 3. **Test Smart Extraction**:
    - Visit same page 3+ times
-   - Look for: `[PageProfiler] ✅ Extracted DOM context for frequent page (3 visits)`
+   - Look for: `[PageProfiler]  Extracted DOM context for frequent page (3 visits)`
    - Check IndexedDB: DevTools → Application → IndexedDB → PageProfilerDB
 
 4. **Test URL Path Tracking**:
@@ -170,35 +170,35 @@ SELECT refresh_frequent_subpaths();
 
 ---
 
-## 📊 Expected Results
+##  Expected Results
 
 ### Database
-- ✅ `url_path` column populated for all events
-- ✅ `page_profiles` table contains learned patterns
-- ✅ `frequent_subpaths` view shows 3+ visit pages
-- ✅ Triggers auto-update timestamps
+-  `url_path` column populated for all events
+-  `page_profiles` table contains learned patterns
+-  `frequent_subpaths` view shows 3+ visit pages
+-  Triggers auto-update timestamps
 
 ### Extension
-- ✅ Console shows PageProfiler activity
-- ✅ IndexedDB stores page profiles
-- ✅ DOM extraction only for frequent pages
-- ✅ URL paths normalized correctly
+-  Console shows PageProfiler activity
+-  IndexedDB stores page profiles
+-  DOM extraction only for frequent pages
+-  URL paths normalized correctly
 
 ### API
-- ✅ Returns 401 for unauthorized requests
-- ✅ Returns structured data for valid requests
-- ✅ Insights include meaningful categories
-- ✅ Performance acceptable (< 2 seconds)
+-  Returns 401 for unauthorized requests
+-  Returns structured data for valid requests
+-  Insights include meaningful categories
+-  Performance acceptable (< 2 seconds)
 
 ### Dashboard
-- ✅ Displays frequent paths
-- ✅ Shows insights by category
-- ✅ Updates with new data
-- ✅ Handles empty states gracefully
+-  Displays frequent paths
+-  Shows insights by category
+-  Updates with new data
+-  Handles empty states gracefully
 
 ---
 
-## 🐛 Troubleshooting
+##  Troubleshooting
 
 ### Common Issues
 
@@ -255,7 +255,7 @@ psql "your_test_database_url" -c "SELECT COUNT(*) FROM events;"
 
 ---
 
-## 📈 Performance Benchmarks
+##  Performance Benchmarks
 
 ### Expected Performance
 
@@ -278,32 +278,32 @@ psql "your_test_database_url" -c "SELECT COUNT(*) FROM events;"
 
 ---
 
-## ✅ Success Criteria
+##  Success Criteria
 
 Phase 1 is ready for production when:
 
 ### Automated Tests
-- ✅ All test suites pass
-- ✅ Performance meets benchmarks
-- ✅ No flaky tests
-- ✅ Good test coverage (>90%)
+-  All test suites pass
+-  Performance meets benchmarks
+-  No flaky tests
+-  Good test coverage (>90%)
 
 ### Manual Verification
-- ✅ Database schema works correctly
-- ✅ Extension loads without errors
-- ✅ Smart extraction triggers appropriately
-- ✅ API endpoints return expected data
-- ✅ Dashboard displays insights
+-  Database schema works correctly
+-  Extension loads without errors
+-  Smart extraction triggers appropriately
+-  API endpoints return expected data
+-  Dashboard displays insights
 
 ### Real-World Testing
-- ✅ Works with actual browsing data
-- ✅ Handles edge cases gracefully
-- ✅ Performance acceptable with real usage
-- ✅ No data corruption or loss
+-  Works with actual browsing data
+-  Handles edge cases gracefully
+-  Performance acceptable with real usage
+-  No data corruption or loss
 
 ---
 
-## 🚀 Next Steps
+##  Next Steps
 
 After Phase 1 tests pass:
 
@@ -314,4 +314,4 @@ After Phase 1 tests pass:
 
 ---
 
-**Ready to test?** Run `./scripts/test-phase1.sh` to get started! 🧪
+**Ready to test?** Run `./scripts/test-phase1.sh` to get started!

@@ -30,7 +30,7 @@ npx supabase db push
 npx supabase db reset --db-url "postgresql://postgres:[YOUR-PASSWORD]@db.[YOUR-PROJECT-REF].supabase.co:5432/postgres"
 ```
 
-**To find your PROJECT_REF**: 
+**To find your PROJECT_REF**:
 - Go to Project Settings → General
 - Your Project Reference ID is in the "Reference ID" field
 - Or extract from your Project URL: `https://[THIS-IS-YOUR-REF].supabase.co`
@@ -50,9 +50,9 @@ Should return: `{"status": "ok", "message": "Supabase connection successful"}`
 
 ## What Was Created
 
-✅ **13 tables**:
+ **13 tables**:
 - profiles (user settings)
-- domains (privacy controls)  
+- domains (privacy controls)
 - sessions (browser sessions)
 - events (activity data)
 - event_embeddings (semantic search)
@@ -65,7 +65,7 @@ Should return: `{"status": "ok", "message": "Supabase connection successful"}`
 - runs (execution logs)
 - automation_feedback (learning data)
 
-✅ **Indexes** for performance
-✅ **RLS ready** (policies coming in T03)
-✅ **Timestamps** with auto-update triggers
+ **Indexes** for performance
+ **RLS ready** (policies coming in T03)
+ **Timestamps** with auto-update triggers
 

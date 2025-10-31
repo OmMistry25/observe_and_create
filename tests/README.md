@@ -2,7 +2,7 @@
 
 This directory contains comprehensive tests for Phase 1 of the Smart Adaptive Context Extraction feature.
 
-## 🧪 Test Structure
+##  Test Structure
 
 ```
 tests/
@@ -20,7 +20,7 @@ tests/
 └── README.md                  # This file
 ```
 
-## 🚀 Running Tests
+##  Running Tests
 
 ### Prerequisites
 
@@ -79,10 +79,10 @@ pnpm test
 - `frequent-subpaths.test.ts`: Materialized view population and refresh
 
 **Key Assertions**:
-- ✅ `url_path` column auto-populates from `url` field
-- ✅ Page profiles can be created, updated, and queried
-- ✅ Frequent subpaths view tracks 3+ visit pages correctly
-- ✅ RLS policies prevent unauthorized access
+-  `url_path` column auto-populates from `url` field
+-  Page profiles can be created, updated, and queried
+-  Frequent subpaths view tracks 3+ visit pages correctly
+-  RLS policies prevent unauthorized access
 
 #### 2. Extension Tests (`tests/extension/`)
 
@@ -92,12 +92,12 @@ pnpm test
 - `page-profiler.test.ts`: All PageProfiler methods and edge cases
 
 **Key Assertions**:
-- ✅ URL normalization removes query params and hash
-- ✅ Platform detection works for major sites
-- ✅ DOM structure analysis finds selectors correctly
-- ✅ Content signal detection identifies page types
-- ✅ Extraction rules are generated appropriately
-- ✅ Profile creation and retrieval works
+-  URL normalization removes query params and hash
+-  Platform detection works for major sites
+-  DOM structure analysis finds selectors correctly
+-  Content signal detection identifies page types
+-  Extraction rules are generated appropriately
+-  Profile creation and retrieval works
 
 #### 3. API Tests (`tests/api/`)
 
@@ -107,10 +107,10 @@ pnpm test
 - `frequent-subpaths.test.ts`: API route authentication and response format
 
 **Key Assertions**:
-- ✅ Authentication required (401 for missing/invalid tokens)
-- ✅ Returns correct data structure for valid requests
-- ✅ Handles edge cases gracefully
-- ✅ Generates meaningful insights
+-  Authentication required (401 for missing/invalid tokens)
+-  Returns correct data structure for valid requests
+-  Handles edge cases gracefully
+-  Generates meaningful insights
 
 #### 4. End-to-End Tests (`tests/e2e/`)
 
@@ -120,12 +120,12 @@ pnpm test
 - `phase1-integration.test.ts`: Full Phase 1 workflow simulation
 
 **Key Assertions**:
-- ✅ Complete user journey works end-to-end
-- ✅ Data flows correctly through all components
-- ✅ Performance is acceptable with large datasets
-- ✅ Error scenarios are handled gracefully
+-  Complete user journey works end-to-end
+-  Data flows correctly through all components
+-  Performance is acceptable with large datasets
+-  Error scenarios are handled gracefully
 
-## 🔧 Test Configuration
+##  Test Configuration
 
 ### Jest Configuration
 
@@ -165,7 +165,7 @@ const testEvent = global.testUtils.createTestEvent();
 const testProfile = global.testUtils.createTestProfile();
 ```
 
-## 📊 Test Coverage
+##  Test Coverage
 
 The test suite covers:
 
@@ -174,7 +174,7 @@ The test suite covers:
 - **API Layer**: 100% of new endpoints
 - **Integration**: Complete user workflows
 
-## 🐛 Debugging Tests
+##  Debugging Tests
 
 ### Verbose Output
 
@@ -207,7 +207,7 @@ SELECT * FROM page_profiles WHERE user_id LIKE 'test-user-%';
 SELECT * FROM frequent_subpaths WHERE user_id LIKE 'test-user-%';
 ```
 
-## 🚨 Common Issues
+##  Common Issues
 
 ### 1. Environment Variables Missing
 
@@ -219,7 +219,7 @@ SELECT * FROM frequent_subpaths WHERE user_id LIKE 'test-user-%';
 
 **Error**: `Failed to connect to Supabase`
 
-**Solution**: 
+**Solution**:
 - Verify Supabase URL and service role key
 - Check network connectivity
 - Ensure test database is accessible
@@ -242,17 +242,17 @@ SELECT * FROM frequent_subpaths WHERE user_id LIKE 'test-user-%';
 - Ensure all dependencies are properly mocked
 - Verify test environment configuration
 
-## 📈 Performance Benchmarks
+##  Performance Benchmarks
 
 Expected performance targets:
 
 - **Database Tests**: < 5 seconds total
-- **Extension Tests**: < 2 seconds total  
+- **Extension Tests**: < 2 seconds total
 - **API Tests**: < 3 seconds total
 - **E2E Tests**: < 10 seconds total
 - **Total Suite**: < 20 seconds
 
-## 🔄 Continuous Integration
+##  Continuous Integration
 
 For CI/CD pipelines, use:
 
@@ -267,7 +267,7 @@ pnpm test --coverage
 pnpm test tests/database/ --passWithNoTests
 ```
 
-## 📝 Adding New Tests
+##  Adding New Tests
 
 When adding new functionality:
 
@@ -301,17 +301,17 @@ describe('Feature: New Functionality', () => {
 });
 ```
 
-## 🎯 Success Criteria
+##  Success Criteria
 
 Phase 1 tests pass when:
 
-- ✅ All database operations work correctly
-- ✅ Extension captures and processes events properly
-- ✅ API endpoints return expected data
-- ✅ Complete user workflows function end-to-end
-- ✅ Performance meets benchmarks
-- ✅ Error scenarios are handled gracefully
+-  All database operations work correctly
+-  Extension captures and processes events properly
+-  API endpoints return expected data
+-  Complete user workflows function end-to-end
+-  Performance meets benchmarks
+-  Error scenarios are handled gracefully
 
 ---
 
-**Ready to test Phase 1?** Run `./scripts/test-phase1.sh` to get started! 🚀
+**Ready to test Phase 1?** Run `./scripts/test-phase1.sh` to get started!
