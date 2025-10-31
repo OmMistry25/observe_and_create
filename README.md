@@ -88,10 +88,6 @@ pnpm type-check
 cd apps/extension && pnpm build
 ```
 
-## Roadmap
-
-See [tasks.md](tasks.md) for detailed implementation roadmap and phases.
-
 ## Privacy & Security
 
 - **Local Redaction**: PII and secrets redacted before upload
