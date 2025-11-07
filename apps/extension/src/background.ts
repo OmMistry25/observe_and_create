@@ -18,7 +18,28 @@ import {
   getQueueStats,
 } from './offline-queue';
 
+// Import local database
+import { getDB, type Event as DBEvent } from '@observe-create/storage';
+
 console.log('[Background] Service worker started');
+
+// Initialize local database
+let localDB: Awaited<ReturnType<typeof getDB>> | null = null;
+
+async function initLocalDB() {
+  if (!localDB) {
+    try {
+      localDB = await getDB();
+      console.log('[Background] ✅ Local database initialized');
+    } catch (error) {
+      console.error('[Background] ❌ Failed to initialize local database:', error);
+    }
+  }
+  return localDB;
+}
+
+// Initialize on startup
+initLocalDB();
 
 // Extension installed/updated
 chrome.runtime.onInstalled.addListener((details) => {
@@ -164,9 +185,8 @@ function estimatePayloadSize(events: any[]): number {
 }
 
 /**
- * Upload event batch to server
- * T14: Uses IndexedDB for persistent offline queue with exponential backoff
- * T15: Handles 413 errors by splitting batches, validates batch size
+ * Save event batch to local SQLite database
+ * Replaces Supabase upload with 100% reliable local storage
  */
 async function uploadEventBatch() {
   if (eventQueue.length === 0) return;
@@ -175,327 +195,97 @@ async function uploadEventBatch() {
   eventQueue = [];
 
   try {
-    // Check session validity
-    const storage = await chrome.storage.local.get(['session', 'supabaseUrl', 'supabaseAnonKey']);
-    console.log('[Background] Storage check:', { 
-      hasSession: !!storage.session, 
-      hasUrl: !!storage.supabaseUrl, 
-      hasKey: !!storage.supabaseAnonKey,
-      sessionKeys: storage.session ? Object.keys(storage.session) : 'none'
-    });
-    
-    const { session } = storage;
-    if (!session?.access_token) {
-      console.log('[Background] No session found, queueing events offline');
-      // T14: Store in IndexedDB for persistent offline queue
+    // Ensure database is initialized
+    const db = await initLocalDB();
+    if (!db) {
+      console.error('[Background] Database not initialized, queueing for retry');
       await enqueueEvents(events);
       return;
     }
 
-    // Check if token is expired
-    const tokenExpiry = session.expires_at * 1000;
-    const now = Date.now();
-    if (now >= tokenExpiry) {
-      console.log('[Background] Token expired, queueing events offline');
-      await chrome.storage.local.remove(['session']);
-      // T14: Store in IndexedDB for persistent offline queue
-      await enqueueEvents(events);
-      return;
+    // Get or create device ID
+    const { device_id } = await chrome.storage.local.get(['device_id']);
+    let deviceId = device_id;
+    if (!deviceId) {
+      deviceId = `ext-${Math.random().toString(36).substr(2, 9)}-${Date.now()}`;
+      await chrome.storage.local.set({ device_id: deviceId });
+      console.log('[Background] Generated device ID:', deviceId);
     }
 
-    // T15: Validate batch size (API limit is 100 events)
-    if (events.length > 100) {
-      console.warn(`[Background] Batch too large (${events.length} events), splitting...`);
-      // Split into smaller batches and upload separately
-      await uploadBatchWithSplit(events, session);
-      return;
-    }
+    console.log(`[Background] Saving ${events.length} events to local database...`);
 
-    // Transform events to match API schema
-    console.log('[Background] Transforming events, sample event:', {
-      hasSemanticContext: !!events[0]?.semantic_context,
-      semanticContextKeys: events[0]?.semantic_context ? Object.keys(events[0].semantic_context) : 'none',
-      hasDocumentContext: !!events[0]?.document_context
-    });
-    
-    const transformedEvents = events.map(event => ({
-      device_id: 'extension-device', // TODO: Generate unique device ID
-      ts: event.timestamp || new Date().toISOString(),
+    // Transform events to database schema
+    const dbEvents: DBEvent[] = events.map(event => ({
+      id: event.id || `evt-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      client_timestamp: event.client_timestamp || Date.now(),
+      local_timestamp: event.local_timestamp || new Date().toISOString(),
+      timezone_offset: event.timezone_offset !== undefined ? event.timezone_offset : new Date().getTimezoneOffset(),
       type: event.type,
       url: event.url,
-      title: event.title || '',
-      dom_path: event.domPath || event.element || '',
-      text: event.text || '',
-      meta: {
-        // Basic event metadata
-        tagName: event.tagName,
-        eventId: event.id, // Store event ID in meta
-        className: event.className,
-        attributes: event.attributes,
-        position: event.position,
-        action: event.action,
-        method: event.method,
-        fieldCount: event.fieldCount,
-        fields: event.fields,
-        referrer: event.referrer,
-        dwellMs: event.dwellMs,
-        // Friction detection metadata (T11.1)
-        frictionType: event.frictionType,
-        velocity: event.velocity,
-        scrollDelta: event.scrollDelta,
-        previousUrl: event.previousUrl,
-        formId: event.formId,
-        timeSpent: event.timeSpent,
-        loadTime: event.loadTime,
-        dns: event.dns,
-        tcp: event.tcp,
-        request: event.request,
-        render: event.render,
-        clickCount: event.clickCount,
-        errorType: event.errorType,
-      },
-      dwell_ms: event.dwellMs,
-      // T13: Include context array (3-5 preceding event IDs)
-      context_events: event.context || [],
-      // LEVEL 1: Include semantic context
-      semantic_context: event.semantic_context || {},
-      // Issue #1: Include document context (smart DOM extraction)
-      document_context: event.document_context || null,
+      domain: event.domain || new URL(event.url).hostname,
+      url_path: event.url_path,
+      title: event.title,
+      semantic_context: event.semantic_context,
+      document_context: event.document_context,
+      device_id: deviceId,
+      session_id: event.session_id,
     }));
 
-    const response = await fetch('https://observeandcreate-ogvlapqej-ommistry25s-projects.vercel.app/api/ingest', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`,
-      },
-      body: JSON.stringify({ events: transformedEvents }),
-    });
+    // Insert into database (using batch insert for performance)
+    db.insertEventsBatch(dbEvents);
 
-    if (response.ok) {
-      const result = await response.json();
-      console.log(`[Background] Uploaded ${result.inserted} events successfully`);
-    } else if (response.status === 413) {
-      // T15: Payload too large - split batch and retry
-      console.warn('[Background] 413 Payload Too Large - splitting batch');
-      await uploadBatchWithSplit(events, session);
-    } else {
-      console.error('[Background] Upload failed:', response.status, response.statusText);
-      // T14: Queue for retry with exponential backoff
-      await enqueueEvents(events);
-    }
+    // Save database to chrome.storage backup
+    await db.saveToStorage();
+
+    console.log(`[Background] ✅ Saved ${events.length} events successfully to local database`);
   } catch (error) {
-    console.error('[Background] Upload error (likely offline):', error);
-    // T14: Queue for retry with exponential backoff
+    console.error('[Background] Local save error:', error);
+    // Fallback to IndexedDB queue if local save fails
     await enqueueEvents(events);
   }
 }
 
 /**
- * Upload batch with automatic splitting if too large
- * T15: Handles 413 errors by splitting into smaller batches
+ * Retry queued events from IndexedDB
+ * Attempts to save them to local database
  */
-async function uploadBatchWithSplit(events: any[], session: any, maxBatchSize: number = 50) {
-  if (events.length === 0) return;
-
-  // If batch is small enough, try to upload directly
-  if (events.length <= maxBatchSize) {
-    // Transform and upload
-    const transformedEvents = events.map(event => ({
-      device_id: 'extension-device',
-      ts: event.timestamp || new Date().toISOString(),
-      type: event.type,
-      url: event.url,
-      title: event.title || '',
-      dom_path: event.domPath || event.element || '',
-      text: event.text || '',
-      meta: {
-        tagName: event.tagName,
-        eventId: event.id,
-        className: event.className,
-        attributes: event.attributes,
-        position: event.position,
-        action: event.action,
-        method: event.method,
-        fieldCount: event.fieldCount,
-        fields: event.fields,
-        referrer: event.referrer,
-        dwellMs: event.dwellMs,
-        frictionType: event.frictionType,
-        velocity: event.velocity,
-        scrollDelta: event.scrollDelta,
-        previousUrl: event.previousUrl,
-        formId: event.formId,
-        timeSpent: event.timeSpent,
-        loadTime: event.loadTime,
-        dns: event.dns,
-        tcp: event.tcp,
-        request: event.request,
-        render: event.render,
-        clickCount: event.clickCount,
-        errorType: event.errorType,
-      },
-      dwell_ms: event.dwellMs,
-      context_events: event.context || [],
-      // LEVEL 1: Include semantic context
-      semantic_context: event.semantic_context || {},
-      // Issue #1: Include document context (smart DOM extraction)
-      document_context: event.document_context || null,
-    }));
-
-    try {
-      const response = await fetch('https://observeandcreate-ogvlapqej-ommistry25s-projects.vercel.app/api/ingest', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ events: transformedEvents }),
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        console.log(`[Background] Split batch uploaded: ${result.inserted} events`);
-      } else if (response.status === 413 && maxBatchSize > 10) {
-        // Still too large, split further
-        console.warn(`[Background] Still 413 with ${events.length} events, splitting smaller (max: ${maxBatchSize / 2})`);
-        await uploadBatchWithSplit(events, session, Math.floor(maxBatchSize / 2));
-      } else {
-        console.error('[Background] Split batch upload failed:', response.status);
-        await enqueueEvents(events);
-      }
-    } catch (error) {
-      console.error('[Background] Split batch error:', error);
-      await enqueueEvents(events);
-    }
-  } else {
-    // Split into chunks and upload recursively
-    console.log(`[Background] Splitting ${events.length} events into batches of ${maxBatchSize}`);
-    for (let i = 0; i < events.length; i += maxBatchSize) {
-      const chunk = events.slice(i, i + maxBatchSize);
-      await uploadBatchWithSplit(chunk, session, maxBatchSize);
-      // Small delay between chunks to avoid overwhelming server
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-  }
-}
-
-/**
- * Retry stored events from IndexedDB queue
- * T14: Implements exponential backoff for failed uploads
- */
-async function retryStoredEvents() {
+async function retryQueuedEvents() {
   try {
-    // Get queue stats
-    const stats = await getQueueStats();
-    if (stats.pending === 0) return;
-
-    console.log(`[Background] Retrying ${stats.pending} pending events (${stats.total} total in queue)`);
-    
-    // Get events ready for retry (respects exponential backoff timing)
-    const queuedEvents = await getEventsToRetry(50); // Batch of 50
+    const queuedEvents = await getEventsToRetry(100);
     if (queuedEvents.length === 0) return;
 
-    // Check session validity
-    const storage = await chrome.storage.local.get(['session', 'supabaseUrl', 'supabaseAnonKey']);
-    console.log('[Background] Retry storage check:', { 
-      hasSession: !!storage.session, 
-      hasUrl: !!storage.supabaseUrl, 
-      hasKey: !!storage.supabaseAnonKey
-    });
+    console.log(`[Background] Retrying ${queuedEvents.length} queued events`);
     
-    const { session } = storage;
-    if (!session?.access_token) {
-      console.log('[Background] No session for retry, will try again later');
-      return;
-    }
-
-    // Extract event IDs and events
-    const eventIds = queuedEvents.map(qe => qe.id);
+    // Extract event data from queued format
     const events = queuedEvents.map(qe => qe.event);
-
-    // Transform events to match API schema
-    const transformedEvents = events.map(event => ({
-      device_id: 'extension-device',
-      ts: event.timestamp || new Date().toISOString(),
-      type: event.type,
-      url: event.url,
-      title: event.title || '',
-      dom_path: event.domPath || event.element || '',
-      text: event.text || '',
-      meta: {
-        tagName: event.tagName,
-        eventId: event.id,
-        className: event.className,
-        attributes: event.attributes,
-        position: event.position,
-        action: event.action,
-        method: event.method,
-        fieldCount: event.fieldCount,
-        fields: event.fields,
-        referrer: event.referrer,
-        dwellMs: event.dwellMs,
-        frictionType: event.frictionType,
-        velocity: event.velocity,
-        scrollDelta: event.scrollDelta,
-        previousUrl: event.previousUrl,
-        formId: event.formId,
-        timeSpent: event.timeSpent,
-        loadTime: event.loadTime,
-        dns: event.dns,
-        tcp: event.tcp,
-        request: event.request,
-        render: event.render,
-        clickCount: event.clickCount,
-        errorType: event.errorType,
-      },
-      dwell_ms: event.dwellMs,
-      context_events: event.context || [],
-      // LEVEL 1: Include semantic context
-      semantic_context: event.semantic_context || {},
-      // Issue #1: Include document context (smart DOM extraction)
-      document_context: event.document_context || null,
-    }));
-
-    // Attempt upload
-    const response = await fetch('https://observeandcreate-ogvlapqej-ommistry25s-projects.vercel.app/api/ingest', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`,
-      },
-      body: JSON.stringify({ events: transformedEvents }),
-    });
-
-    if (response.ok) {
-      const result = await response.json();
-      console.log(`[Background] Retry successful: uploaded ${result.inserted} events`);
-      // Remove successfully uploaded events from queue
-      await dequeueEvents(eventIds);
-    } else {
-      console.error('[Background] Retry failed:', response.status, response.statusText);
-      // Schedule retry with exponential backoff
-      await scheduleRetry(eventIds);
-    }
+    
+    // Add back to event queue for processing
+    eventQueue.push(...events);
+    
+    // Try to save
+    await uploadEventBatch();
+    
+    // If successful, dequeue them
+    await dequeueEvents(queuedEvents.map(qe => qe.id));
   } catch (error) {
-    console.error('[Background] Retry error:', error);
-    // Events remain in queue, will retry based on exponential backoff schedule
+    console.error('[Background] Error retrying queued events:', error);
   }
 }
+
 
 // Keep service worker alive
 // Note: Service workers in MV3 can be terminated at any time
 // Use chrome.alarms for periodic tasks
 if (chrome.alarms) {
   chrome.alarms.create('keepAlive', { periodInMinutes: 1 });
-  chrome.alarms.create('uploadEvents', { periodInMinutes: 0.5 }); // Every 30 seconds
+  chrome.alarms.create('saveEvents', { periodInMinutes: 0.5 }); // Every 30 seconds
 
   chrome.alarms.onAlarm.addListener(async (alarm) => {
     if (alarm.name === 'keepAlive') {
       console.log('[Background] Keep-alive ping');
-    } else if (alarm.name === 'uploadEvents') {
-      await uploadEventBatch();
-      await retryStoredEvents();
+    } else if (alarm.name === 'saveEvents') {
+      await uploadEventBatch(); // Actually saves to local DB now
+      await retryQueuedEvents(); // Retry any failed saves from IndexedDB queue
     }
   });
 } else {

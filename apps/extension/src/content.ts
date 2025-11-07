@@ -533,13 +533,49 @@ async function captureEvent(eventData: any) {
   
   // Generate unique ID for this event
   const eventId = generateEventId(eventData.type);
-  const timestamp = new Date().toISOString();
+  
+  // Capture accurate timestamps (fixes timezone issue)
+  const now = new Date();
+  const client_timestamp = Date.now(); // Unix timestamp in milliseconds
+  const local_timestamp = now.toISOString(); // ISO 8601 string
+  const timezone_offset = now.getTimezoneOffset(); // Minutes offset from UTC
+  const timestamp = local_timestamp; // Keep for backward compatibility
   
   // Get context before adding current event
   const context = getEventContext();
   
-  // LEVEL 1: Capture enhanced semantic context
-  const semanticContext = captureSemanticContext(eventData.element);
+  // LEVEL 1: Capture enhanced semantic context with fallback
+  let semanticContext = captureSemanticContext(eventData.element);
+  
+  // Ensure semantic context always has minimum required fields (80%+ completeness goal)
+  if (!semanticContext || !semanticContext.temporalContext) {
+    const fallbackContext = {
+      temporalContext: {
+        localTime: local_timestamp,
+        timeOfDay: now.getHours() < 12 ? 'morning' : now.getHours() < 18 ? 'afternoon' : 'evening',
+        dayOfWeek: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][now.getDay()],
+        isWorkHours: now.getHours() >= 9 && now.getHours() < 17
+      },
+      journeyState: {
+        sessionIndex: context.length,
+        interactionCount: getInteractionCount()
+      },
+      pageMetadata: {
+        title: document.title,
+        type: 'unknown',
+        category: 'general'
+      }
+    };
+    
+    // Merge with captured context, preferring captured values
+    semanticContext = {
+      ...fallbackContext,
+      ...semanticContext,
+      temporalContext: { ...fallbackContext.temporalContext, ...semanticContext?.temporalContext },
+      journeyState: { ...fallbackContext.journeyState, ...semanticContext?.journeyState },
+      pageMetadata: { ...fallbackContext.pageMetadata, ...semanticContext?.pageMetadata }
+    };
+  }
   
   // Extract domain from URL for efficient server-side filtering
   const domain = window.location.hostname.replace('www.', '');
@@ -566,13 +602,17 @@ async function captureEvent(eventData: any) {
   const event = {
     ...eventData,
     id: eventId,
-    timestamp,
+    // New timestamp fields (fixes timezone issue)
+    client_timestamp,
+    local_timestamp,
+    timezone_offset,
+    timestamp, // Keep for backward compatibility
     url: window.location.href,
     url_path: urlPath, // Issue #1: Track normalized URL path
     title: document.title,
     domain, // Add domain for efficient server-side queries
     context, // T13: Include 3-5 preceding event IDs
-    semantic_context: semanticContext, // LEVEL 1: Rich semantic context
+    semantic_context: semanticContext, // LEVEL 1: Rich semantic context with fallback
     document_context: documentContext, // Issue #1: Smart-extracted DOM context (only for frequent pages)
   };
   

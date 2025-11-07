@@ -42,6 +42,9 @@ importers:
       '@observe-create/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
+      '@observe-create/storage':
+        specifier: workspace:^
+        version: link:../../packages/storage
       '@supabase/supabase-js':
         specifier: ^2.39.0
         version: 2.75.0

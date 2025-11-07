@@ -10,6 +10,7 @@
   "dependencies": {
     "@observe-create/schemas": "workspace:*",
     "@observe-create/sdk": "workspace:*",
+    "@observe-create/storage": "workspace:^",
     "@supabase/supabase-js": "^2.39.0",
     "sql.js": "^1.13.0"
   },
