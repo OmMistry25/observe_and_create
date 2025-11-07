@@ -585,8 +585,10 @@ async function retryQueuedEvents() {
     // Try to save
     await uploadEventBatch();
     
-    // If successful, dequeue them
-    await dequeueEvents(queuedEvents.map(qe => qe.id));
+    // NOTE: We DON'T dequeue events anymore because IndexedDB IS our permanent storage
+    // In the old architecture, we dequeued after uploading to Supabase
+    // Now, the queue IS the database, so we keep all events for history
+    // await dequeueEvents(queuedEvents.map(qe => qe.id));
   } catch (error) {
     console.error('[Background] Error retrying queued events:', error);
   }
