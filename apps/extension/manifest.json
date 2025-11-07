@@ -9,7 +9,8 @@
     "activeTab",
     "scripting",
     "alarms",
-    "offscreen"
+    "offscreen",
+    "downloads"
   ],
   "host_permissions": [
     "<all_urls>"
