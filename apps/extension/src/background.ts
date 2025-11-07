@@ -243,13 +243,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           
           if (response && response.success) {
             console.log('[Background] Data received, triggering download...');
-            // Trigger download from background script
-            const blob = new Blob([JSON.stringify(response.data, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
+            // Convert to data URL (URL.createObjectURL not available in service workers)
+            const jsonString = JSON.stringify(response.data, null, 2);
+            const base64Data = btoa(unescape(encodeURIComponent(jsonString)));
+            const dataUrl = `data:application/json;base64,${base64Data}`;
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
             const filename = `observe-create-export-${timestamp}.json`;
             
-            await chrome.downloads.download({ url, filename, saveAs: true });
+            await chrome.downloads.download({ url: dataUrl, filename, saveAs: true });
             console.log('[Background] ✅ Export successful:', filename);
             sendResponse({ success: true });
           } else {
@@ -280,12 +281,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
             const csv = [headers.join(','), ...rows].join('\n');
             
-            const blob = new Blob([csv], { type: 'text/csv' });
-            const url = URL.createObjectURL(blob);
+            // Convert to data URL
+            const base64Data = btoa(unescape(encodeURIComponent(csv)));
+            const dataUrl = `data:text/csv;base64,${base64Data}`;
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
             const filename = `observe-create-events-${timestamp}.csv`;
             
-            await chrome.downloads.download({ url, filename, saveAs: true });
+            await chrome.downloads.download({ url: dataUrl, filename, saveAs: true });
             sendResponse({ success: true });
           } else {
             sendResponse({ success: false, error: response.error });
@@ -327,12 +329,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               patterns
             };
             
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
+            // Convert to data URL
+            const jsonString = JSON.stringify(data, null, 2);
+            const base64Data = btoa(unescape(encodeURIComponent(jsonString)));
+            const dataUrl = `data:application/json;base64,${base64Data}`;
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
             const filename = `observe-create-patterns-${timestamp}.json`;
             
-            await chrome.downloads.download({ url, filename, saveAs: true });
+            await chrome.downloads.download({ url: dataUrl, filename, saveAs: true });
             sendResponse({ success: true });
           } else {
             sendResponse({ success: false, error: response.error });
