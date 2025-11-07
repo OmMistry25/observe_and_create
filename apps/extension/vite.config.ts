@@ -13,12 +13,18 @@ export default defineConfig({
       output: {
         entryFileNames: '[name].js',
         dir: 'dist',
-        format: 'es', // ES modules work fine for extensions
+        format: 'iife',
+        // Bundle each entry point with all dependencies
+        manualChunks: undefined,
       },
+      // Disable code splitting - each file should be self-contained
+      preserveEntrySignatures: 'strict',
     },
     outDir: 'dist',
     emptyOutDir: true,
-    minify: false, // Easier debugging
+    minify: false,
+    // Important: don't create separate chunks
+    chunkSizeWarningLimit: 2000,
   },
   plugins: [
     {
@@ -26,7 +32,6 @@ export default defineConfig({
       closeBundle() {
         const distDir = resolve(__dirname, 'dist');
         
-        // Ensure dist directory exists
         if (!existsSync(distDir)) {
           mkdirSync(distDir, { recursive: true });
         }
@@ -43,6 +48,16 @@ export default defineConfig({
           resolve(distDir, 'popup.html')
         );
         
+        // Copy SQL.js WASM file
+        try {
+          const wasmSource = resolve(__dirname, '../../node_modules/.pnpm/sql.js@1.13.0/node_modules/sql.js/dist/sql-wasm.wasm');
+          const wasmDest = resolve(distDir, 'sql-wasm.wasm');
+          copyFileSync(wasmSource, wasmDest);
+          console.log('✓ Copied sql-wasm.wasm');
+        } catch (error) {
+          console.warn('Failed to copy WASM file:', error.message);
+        }
+        
         // Generate icons
         const { execSync } = require('child_process');
         try {
@@ -56,4 +71,3 @@ export default defineConfig({
     },
   ],
 });
-

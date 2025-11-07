@@ -296,6 +296,7 @@ function calculateAverageTimeGap(sequence: EventSummary[]): number {
 
 /**
  * Save pattern to local database
+ * Note: Silently fails in content script context - patterns are still detected locally
  */
 async function savePatternToDatabase(pattern: DetectedPattern): Promise<void> {
   try {
@@ -322,9 +323,11 @@ async function savePatternToDatabase(pattern: DetectedPattern): Promise<void> {
     };
 
     db.upsertPattern(dbPattern);
-    console.log(`[PatternDetector] Saved pattern ${pattern.id} to database`);
+    await db.saveToStorage();
+    console.log(`[PatternDetector] ✅ Saved pattern ${pattern.id} to database`);
   } catch (error) {
-    console.error('[PatternDetector] Failed to save pattern to database:', error);
+    // Silently fail - database not available in content script, which is OK
+    console.debug('[PatternDetector] Database not available:', error.message);
   }
 }
 

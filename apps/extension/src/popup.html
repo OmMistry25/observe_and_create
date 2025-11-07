@@ -134,6 +134,35 @@
       margin-top: 4px;
     }
 
+    .health-indicator {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      margin-left: 8px;
+    }
+
+    .health-indicator.excellent {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    .health-indicator.good {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+
+    .health-indicator.fair {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .health-indicator.poor {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
     .button {
       width: 100%;
       padding: 12px;
@@ -193,11 +222,39 @@
       <div class="stats">
         <div class="stat-card">
           <div class="stat-value" id="eventCount">0</div>
-          <div class="stat-label">Events</div>
+          <div class="stat-label">Events Captured</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value" id="domainCount">0</div>
-          <div class="stat-label">Domains</div>
+          <div class="stat-value" id="patternCount">0</div>
+          <div class="stat-label">Patterns Detected</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Storage & Quality</div>
+      <div class="stats">
+        <div class="stat-card">
+          <div class="stat-value" id="storageSize">0MB</div>
+          <div class="stat-label">Data Stored</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="qualityScore">--%</div>
+          <div class="stat-label">Data Quality</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Intelligence</div>
+      <div class="stats">
+        <div class="stat-card">
+          <div class="stat-value" id="temporalPatterns">0</div>
+          <div class="stat-label">Time Patterns</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="pageProfiles">0</div>
+          <div class="stat-label">Page Profiles</div>
         </div>
       </div>
     </div>

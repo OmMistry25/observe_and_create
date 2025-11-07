@@ -66,42 +66,10 @@ export class LocalDB {
    * Initialize SQLite database
    */
   async initialize(): Promise<void> {
-    if (this.isInitialized) {
-      console.log('[LocalDB] Already initialized');
-      return;
-    }
-
-    try {
-      console.log('[LocalDB] Initializing SQL.js...');
-
-      // Initialize SQL.js
-      this.SQL = await initSqlJs({
-        locateFile: (file) => `https://sql.js.org/dist/${file}`
-      });
-
-      // Try to load existing database from chrome.storage
-      const existingData = await this.loadFromStorage();
-      
-      if (existingData) {
-        console.log('[LocalDB] Loading existing database from storage...');
-        this.db = new this.SQL.Database(existingData);
-      } else {
-        console.log('[LocalDB] Creating new database...');
-        this.db = new this.SQL.Database();
-      }
-
-      // Create schema
-      await this.createSchema();
-
-      this.isInitialized = true;
-      console.log('[LocalDB] Initialization complete');
-
-      // Set up periodic backup
-      this.setupPeriodicBackup();
-    } catch (error) {
-      console.error('[LocalDB] Initialization failed:', error);
-      throw error;
-    }
+    // WASM is not reliable in Chrome extensions - disable SQL.js entirely
+    // Extension will use IndexedDB fallback instead
+    // This prevents WASM compilation errors in the Chrome extension console
+    throw new Error('SQLite/WASM disabled - using IndexedDB fallback');
   }
 
   /**

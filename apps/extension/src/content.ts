@@ -6,47 +6,15 @@
  */
 
 import { addEventAndDetect, getDetectedPatterns } from './patternDetector';
+import { addTemporalEvent, getTemporalPatterns, getTemporalStats } from './temporalPatternDetector';
 import { PageProfiler } from './pageProfiler';
 
 // Initialize Page Profiler for smart DOM extraction
 const pageProfiler = new PageProfiler();
 
-// Try to initialize Supabase immediately
-try {
-  pageProfiler.initSupabase();
-} catch (error) {
-  if (error.message?.includes('Extension context invalidated')) {
-    console.warn('[Content] Extension context invalidated during initial Supabase init');
-  } else {
-    console.warn('[Content] Failed initial Supabase init:', error);
-  }
-}
-
-// Set up periodic Supabase initialization check (every 10 seconds)
-// Only if Supabase client is not already initialized
-let initInterval: NodeJS.Timeout | null = null;
-
-function startPeriodicInit() {
-  if (initInterval) return;
-  
-  initInterval = setInterval(() => {
-    try {
-      if (!pageProfiler.supabase && chrome?.storage?.local) {
-        pageProfiler.initSupabase();
-      }
-    } catch (error) {
-      if (error.message?.includes('Extension context invalidated')) {
-        console.warn('[Content] Extension context invalidated, stopping periodic init');
-        if (initInterval) {
-          clearInterval(initInterval);
-          initInterval = null;
-        }
-      }
-    }
-  }, 10000);
-}
-
-startPeriodicInit();
+// Note: Content script does NOT initialize the database
+// All database operations are handled by the background script
+// The content script only captures events and sends them to the background
 
 // Log to both extension console and page console
 console.log('[Content] Script loaded on:', window.location.href);
@@ -619,7 +587,7 @@ async function captureEvent(eventData: any) {
   // Add current event to context for next event
   addToContext(eventId, eventData.type, timestamp);
   
-  // T18: Real-time pattern detection
+  // T18: Real-time pattern detection (frequency-based)
   const detectedPattern = addEventAndDetect(event);
   if (detectedPattern) {
     const patternMsg = `[PatternDetector] 🎯 Pattern detected! ${detectedPattern.sequence.map(e => e.type).join(' → ')} (${detectedPattern.occurrences}x, confidence: ${detectedPattern.confidence})`;
@@ -639,6 +607,28 @@ async function captureEvent(eventData: any) {
         console.warn('[Content] Extension context invalidated, cannot send pattern message');
       } else {
         console.warn('[Content] Failed to send pattern message:', error);
+      }
+    }
+  }
+  
+  // Temporal pattern detection (time-based)
+  const temporalPatterns = addTemporalEvent(event);
+  if (temporalPatterns && temporalPatterns.length > 0) {
+    for (const tempPattern of temporalPatterns) {
+      const tempMsg = `[TemporalDetector] ⏰ ${tempPattern.type} pattern: ${tempPattern.description} (confidence: ${tempPattern.confidence})`;
+      console.log(tempMsg);
+      window.postMessage({ type: 'EXTENSION_LOG', message: tempMsg }, '*');
+      
+      // Notify background about temporal pattern
+      try {
+        if (chrome?.runtime?.sendMessage) {
+          chrome.runtime.sendMessage({
+            type: 'TEMPORAL_PATTERN_DETECTED',
+            pattern: tempPattern,
+          });
+        }
+      } catch (error) {
+        // Silently fail - not critical
       }
     }
   }
@@ -847,44 +837,12 @@ if (window.location.search) {
   }
 }
 
-// Listen for session from web app
+// Listen for messages from web app (for future use)
 window.addEventListener('message', (event) => {
   console.log('[Content] Received message:', event.data?.type, 'from origin:', event.origin);
   
-  if (event.data?.type === 'SUPABASE_SESSION') {
-    console.log('[Content] Processing SUPABASE_SESSION message...');
-    console.log('[Content] Full message data:', event.data);
-    console.log('[Content] Supabase URL:', event.data.supabaseUrl);
-    console.log('[Content] Supabase Key present:', !!event.data.supabaseAnonKey);
-    
-    // Store session and Supabase config in extension storage
-    chrome.storage.local.set({ 
-      session: event.data.session,
-      supabaseUrl: event.data.supabaseUrl,
-      supabaseAnonKey: event.data.supabaseAnonKey,
-    }, () => {
-      console.log('[Content] Session and Supabase config received and stored');
-      window.postMessage({ type: 'EXTENSION_LOG', message: '[Content] Session and Supabase config received and stored' }, '*');
-      
-      // Re-initialize PageProfiler with new Supabase config
-      if (pageProfiler && typeof pageProfiler.initSupabase === 'function') {
-        pageProfiler.initSupabase();
-        console.log('[Content] PageProfiler Supabase client re-initialized');
-      } else {
-        console.warn('[Content] PageProfiler not available for re-initialization');
-      }
-    });
-  } else if (event.data.type === 'REINITIALIZE_PAGEPROFILER') {
-    console.log('[Content] Processing REINITIALIZE_PAGEPROFILER message...');
-    
-    // Re-initialize PageProfiler with new Supabase config
-    if (pageProfiler && typeof pageProfiler.initSupabase === 'function') {
-      pageProfiler.initSupabase();
-      console.log('[Content] PageProfiler Supabase client re-initialized via direct message');
-    } else {
-      console.warn('[Content] PageProfiler not available for re-initialization');
-    }
-  }
+  // Note: Supabase integration removed - all data is stored locally now
+  // Future message handlers can be added here
 });
 
 /**

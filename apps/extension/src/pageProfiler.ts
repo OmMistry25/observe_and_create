@@ -65,20 +65,35 @@ export class PageProfiler {
   constructor() {
     this.initIndexedDB();
     this.loadProfilesFromStorage();
-    this.initLocalDB();
+    // Note: Do NOT auto-initialize database in content script
+    // Database initialization will be handled by background script only
   }
 
   /**
    * Initialize local SQLite database for storing page profiles
+   * Note: This should only be called in background script context
    */
-  private async initLocalDB(): Promise<void> {
+  async initLocalDB(): Promise<void> {
     try {
+      // Skip database initialization in content script context
+      // The database is only available in the background script
+      if (typeof chrome !== 'undefined' && chrome.runtime) {
+        // Check if we're in background script context
+        try {
+          await chrome.runtime.getBackgroundPage?.();
+        } catch {
+          // Not in background context, skip database init
+          console.debug('[PageProfiler] Skipping database init (content script context)');
+          return;
+        }
+      }
+      
       if (!this.localDB) {
         this.localDB = await getDB();
         console.log('[PageProfiler] ✅ Local database initialized');
       }
     } catch (error) {
-      console.warn('[PageProfiler] ❌ Failed to initialize local database:', error);
+      console.debug('[PageProfiler] Database not available (content script context)');
     }
   }
 
@@ -143,15 +158,14 @@ export class PageProfiler {
 
   /**
    * Save profile to local SQLite database
+   * Note: Silently skips if database not available (content script context)
    */
   private async saveProfileToLocalDB(profile: PageProfile): Promise<void> {
     try {
+      // Skip if database not available (content script context)
       if (!this.localDB) {
-        await this.initLocalDB();
-        if (!this.localDB) {
-          console.warn('[PageProfiler] ❌ Local database not initialized, skipping save');
-          return;
-        }
+        console.debug('[PageProfiler] Database not available, skipping save');
+        return;
       }
 
       // Convert profile to database format

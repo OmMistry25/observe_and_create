@@ -30,25 +30,62 @@ import {
   createAutoBackup
 } from './export';
 
+// Import local LLM features
+import { 
+  initializeIntentClassifier, 
+  classifyIntent, 
+  isClassifierReady 
+} from './localInference';
+import { 
+  preloadModel, 
+  isModelReady,
+  generateEmbedding
+} from './localEmbeddings';
+import {
+  clusterPatterns,
+  PatternCluster
+} from './semanticClustering';
+
 console.log('[Background] Service worker started');
 
-// Initialize local database
+// NOTE: Local LLM (Transformers.js) is disabled in service workers
+// Service workers don't have access to URL.createObjectURL and Web Workers
+// which Transformers.js requires. This is a Chrome MV3 limitation.
+// 
+// Alternative: Could use offscreen documents (Chrome 109+) or move to content script
+// For now: Extension works without local LLM, using pattern detection only
+console.log('[Background] ℹ️ Local LLM disabled (service worker limitation)');
+console.log('[Background] Pattern detection active (frequency + temporal)');
+
+// Initialize local database (optional - falls back to IndexedDB if fails)
 let localDB: Awaited<ReturnType<typeof getDB>> | null = null;
+let dbInitFailed = false;
 
 async function initLocalDB() {
+  if (dbInitFailed) {
+    // Already tried and failed, don't retry
+    return null;
+  }
+  
   if (!localDB) {
     try {
       localDB = await getDB();
-      console.log('[Background] ✅ Local database initialized');
+      console.log('[Background] ✅ Local SQLite database initialized');
+      return localDB;
     } catch (error) {
-      console.error('[Background] ❌ Failed to initialize local database:', error);
+      // Database initialization failed - this is OK, we'll use IndexedDB instead
+      console.warn('[Background] SQLite unavailable, using IndexedDB fallback');
+      dbInitFailed = true;
+      return null;
     }
   }
   return localDB;
 }
 
-// Initialize on startup
-initLocalDB();
+// Try to initialize on startup (non-blocking, optional)
+initLocalDB().catch(() => {
+  console.log('[Background] Using IndexedDB for event storage');
+});
 
 // Extension installed/updated
 chrome.runtime.onInstalled.addListener((details) => {
@@ -99,7 +136,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case 'EVENT_CAPTURED':
       // Event captured by content script
       console.log('[Background] Event captured:', message.event);
+      
+      // Local LLM disabled in service workers (Chrome MV3 limitation)
+      // Events are stored with pattern detection only
       queueEventForUpload(message.event);
+      
       sendResponse({ received: true });
       break;
       
@@ -109,6 +150,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       console.log('[Background] Sequence:', message.pattern.sequence.map((e: any) => e.type).join(' → '));
       console.log('[Background] Occurrences:', message.pattern.occurrences);
       console.log('[Background] Confidence:', message.pattern.confidence);
+      sendResponse({ acknowledged: true });
+      break;
+      
+    case 'TEMPORAL_PATTERN_DETECTED':
+      // Temporal pattern detected (hourly, daily, weekly, etc.)
+      console.log('[Background] ⏰ Temporal pattern detected:', message.pattern.type);
+      console.log('[Background] Description:', message.pattern.description);
+      console.log('[Background] Confidence:', message.pattern.confidence);
+      
+      // Pattern embedding disabled (local LLM not available in service workers)
+      
       sendResponse({ acknowledged: true });
       break;
       
@@ -246,10 +298,11 @@ async function uploadEventBatch() {
   eventQueue = [];
 
   try {
-    // Ensure database is initialized
+    // Try to initialize database (optional SQLite, falls back to IndexedDB)
     const db = await initLocalDB();
     if (!db) {
-      console.error('[Background] Database not initialized, queueing for retry');
+      // Database not available, fall back to IndexedDB queue
+      console.log('[Background] Using IndexedDB for event storage');
       await enqueueEvents(events);
       return;
     }

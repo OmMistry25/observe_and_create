@@ -48,6 +48,9 @@ importers:
       '@supabase/supabase-js':
         specifier: ^2.39.0
         version: 2.75.0
+      '@xenova/transformers':
+        specifier: ^2.17.0
+        version: 2.17.2
       sql.js:
         specifier: ^1.13.0
         version: 1.13.0

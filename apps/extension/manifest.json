@@ -42,9 +42,12 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["content.js"],
+      "resources": ["content.js", "chunks/*.js", "*.wasm"],
       "matches": ["<all_urls>"]
     }
-  ]
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  }
 }
 
