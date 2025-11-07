@@ -1049,5 +1049,133 @@ captureEvent({
   referrer: document.referrer || null,
 });
 
+/**
+ * Glue Events - Window focus/blur and visibility tracking
+ * These events provide critical context for pattern boundaries and session detection
+ */
+
+// Track page visibility changes
+let pageVisibleAt: number | null = Date.now();
+let pageHiddenAt: number | null = null;
+
+document.addEventListener('visibilitychange', () => {
+  const now = Date.now();
+  
+  if (document.hidden) {
+    // Page became hidden
+    pageHiddenAt = now;
+    const dwellTime = pageVisibleAt ? now - pageVisibleAt : 0;
+    
+    captureEvent({
+      type: 'page_blur',
+      dwellMs: dwellTime,
+      visibilityState: document.visibilityState,
+    });
+    
+    console.log('[Content] Page hidden, dwell time:', dwellTime, 'ms');
+  } else {
+    // Page became visible
+    pageVisibleAt = now;
+    const awayTime = pageHiddenAt ? now - pageHiddenAt : 0;
+    
+    captureEvent({
+      type: 'page_focus',
+      awayMs: awayTime,
+      visibilityState: document.visibilityState,
+    });
+    
+    console.log('[Content] Page visible, away time:', awayTime, 'ms');
+  }
+});
+
+// Track window focus/blur events
+let windowFocusedAt: number | null = Date.now();
+let windowBlurredAt: number | null = null;
+
+window.addEventListener('focus', () => {
+  const now = Date.now();
+  windowFocusedAt = now;
+  const blurDuration = windowBlurredAt ? now - windowBlurredAt : 0;
+  
+  captureEvent({
+    type: 'window_focus',
+    blurDuration: blurDuration,
+  });
+  
+  console.log('[Content] Window focused, blur duration:', blurDuration, 'ms');
+});
+
+window.addEventListener('blur', () => {
+  const now = Date.now();
+  windowBlurredAt = now;
+  const focusDuration = windowFocusedAt ? now - windowFocusedAt : 0;
+  
+  captureEvent({
+    type: 'window_blur',
+    focusDuration: focusDuration,
+  });
+  
+  console.log('[Content] Window blurred, focus duration:', focusDuration, 'ms');
+});
+
+// Track idle state (no mouse/keyboard activity for 60 seconds)
+let lastActivityTime = Date.now();
+let idleCheckInterval: ReturnType<typeof setInterval> | null = null;
+let isIdle = false;
+
+// Reset activity timer on any interaction
+const resetActivity = () => {
+  const now = Date.now();
+  const wasIdle = isIdle;
+  
+  if (wasIdle) {
+    // Coming back from idle
+    const idleDuration = now - lastActivityTime;
+    
+    captureEvent({
+      type: 'idle_end',
+      idleDuration: idleDuration,
+    });
+    
+    console.log('[Content] User returned from idle, idle duration:', idleDuration, 'ms');
+    isIdle = false;
+  }
+  
+  lastActivityTime = now;
+};
+
+// Listen for activity
+document.addEventListener('mousemove', resetActivity, { passive: true });
+document.addEventListener('keydown', resetActivity, { passive: true });
+document.addEventListener('click', resetActivity, { passive: true });
+document.addEventListener('scroll', resetActivity, { passive: true });
+
+// Check for idle state every 10 seconds
+idleCheckInterval = setInterval(() => {
+  const now = Date.now();
+  const timeSinceActivity = now - lastActivityTime;
+  
+  // Mark as idle if no activity for 60 seconds
+  if (!isIdle && timeSinceActivity > 60000) {
+    isIdle = true;
+    
+    captureEvent({
+      type: 'idle_start',
+      lastActivityTime: lastActivityTime,
+    });
+    
+    console.log('[Content] User went idle');
+  }
+}, 10000);
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+  if (idleCheckInterval) {
+    clearInterval(idleCheckInterval);
+  }
+});
+
+console.log('[Content] ✅ Glue events initialized: page visibility, window focus/blur, idle detection');
+
 export {};
 
