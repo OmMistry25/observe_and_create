@@ -1,31 +1,95 @@
 /**
- * Data Export Utilities
+ * Data Export Utilities - IndexedDB Version
  * 
- * Provides comprehensive data export functionality for users to:
- * - Download all events, patterns, page profiles, and sessions as JSON
- * - Generate CSV exports for analysis
- * - Create timestamped backup files
+ * Reads directly from IndexedDB since SQLite is disabled
  */
-
-import { getDB } from '@observe-create/storage';
 
 export interface ExportData {
   metadata: {
     exportDate: string;
     version: string;
     totalEvents: number;
-    totalPatterns: number;
-    totalProfiles: number;
-    totalSessions: number;
+    totalJournals: number;
     dateRange: {
       earliest: string;
       latest: string;
     };
   };
   events: any[];
-  patterns: any[];
-  pageProfiles: any[];
-  sessions: any[];
+  journals: any[];
+}
+
+/**
+ * Get all events from IndexedDB
+ */
+async function getAllEventsFromIndexedDB(): Promise<any[]> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('ObserveCreateDB', 1);
+
+    request.onerror = () => reject(request.error);
+
+    request.onsuccess = () => {
+      const db = request.result;
+      
+      if (!db.objectStoreNames.contains('offline-queue')) {
+        resolve([]);
+        db.close();
+        return;
+      }
+
+      const transaction = db.transaction(['offline-queue'], 'readonly');
+      const store = transaction.objectStore('offline-queue');
+      const getAllRequest = store.getAll();
+      
+      getAllRequest.onsuccess = () => {
+        db.close();
+        const items = (getAllRequest.result || []) as any[];
+        // Extract events from queue items
+        const events = items.map(item => item.event).filter(e => e);
+        resolve(events);
+      };
+      
+      getAllRequest.onerror = () => {
+        db.close();
+        reject(getAllRequest.error);
+      };
+    };
+  });
+}
+
+/**
+ * Get all journals from IndexedDB
+ */
+async function getAllJournalsFromIndexedDB(): Promise<any[]> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('ObserveCreateDB', 1);
+
+    request.onerror = () => reject(request.error);
+
+    request.onsuccess = () => {
+      const db = request.result;
+      
+      if (!db.objectStoreNames.contains('journals')) {
+        resolve([]);
+        db.close();
+        return;
+      }
+
+      const transaction = db.transaction(['journals'], 'readonly');
+      const store = transaction.objectStore('journals');
+      const getAllRequest = store.getAll();
+      
+      getAllRequest.onsuccess = () => {
+        db.close();
+        resolve(getAllRequest.result || []);
+      };
+      
+      getAllRequest.onerror = () => {
+        db.close();
+        reject(getAllRequest.error);
+      };
+    };
+  });
 }
 
 /**
@@ -33,18 +97,19 @@ export interface ExportData {
  */
 export async function exportAllData(): Promise<ExportData> {
   try {
-    const db = await getDB();
-    
-    // Get all data from database
-    const data = await db.exportAllData();
+    // Get data from IndexedDB
+    const events = await getAllEventsFromIndexedDB();
+    const journals = await getAllJournalsFromIndexedDB();
     
     // Calculate date range
-    const events = data.events || [];
     let earliestDate = new Date().toISOString();
     let latestDate = new Date().toISOString();
     
     if (events.length > 0) {
-      const timestamps = events.map(e => e.client_timestamp).filter(Boolean);
+      const timestamps = events
+        .map(e => e.client_timestamp || Date.parse(e.local_timestamp))
+        .filter(Boolean);
+      
       if (timestamps.length > 0) {
         earliestDate = new Date(Math.min(...timestamps)).toISOString();
         latestDate = new Date(Math.max(...timestamps)).toISOString();
@@ -56,18 +121,14 @@ export async function exportAllData(): Promise<ExportData> {
         exportDate: new Date().toISOString(),
         version: '1.0',
         totalEvents: events.length,
-        totalPatterns: data.patterns?.length || 0,
-        totalProfiles: data.pageProfiles?.length || 0,
-        totalSessions: data.sessions?.length || 0,
+        totalJournals: journals.length,
         dateRange: {
           earliest: earliestDate,
           latest: latestDate
         }
       },
-      events: data.events || [],
-      patterns: data.patterns || [],
-      pageProfiles: data.pageProfiles || [],
-      sessions: data.sessions || []
+      events,
+      journals
     };
   } catch (error) {
     console.error('[Export] Failed to export data:', error);
@@ -123,8 +184,7 @@ export async function downloadDataAsJSON(): Promise<void> {
  */
 export async function exportEventsAsCSV(): Promise<string> {
   try {
-    const db = await getDB();
-    const events = await db.getRecentEvents(10000); // Export up to 10k most recent
+    const events = await getAllEventsFromIndexedDB();
     
     if (events.length === 0) {
       return 'No events to export';
@@ -146,15 +206,15 @@ export async function exportEventsAsCSV(): Promise<string> {
     
     // CSV rows
     const rows = events.map(event => [
-      event.id,
-      event.local_timestamp,
-      event.type,
-      event.url,
-      event.domain,
+      event.id || '',
+      event.local_timestamp || '',
+      event.type || '',
+      event.url || '',
+      event.domain || '',
       event.title || '',
-      event.client_timestamp,
-      event.timezone_offset,
-      event.device_id,
+      event.client_timestamp || '',
+      event.timezone_offset || '',
+      event.device_id || '',
       event.session_id || ''
     ].map(value => `"${String(value).replace(/"/g, '""')}"`).join(','));
     
@@ -211,44 +271,39 @@ export async function downloadEventsAsCSV(): Promise<void> {
  */
 export async function getExportSummary(): Promise<{
   eventCount: number;
-  patternCount: number;
-  profileCount: number;
-  sessionCount: number;
+  journalCount: number;
   estimatedSize: string;
   dateRange: { earliest: string; latest: string } | null;
 }> {
   try {
-    const db = await getDB();
-    const stats = db.getStats();
+    const events = await getAllEventsFromIndexedDB();
+    const journals = await getAllJournalsFromIndexedDB();
     
     // Estimate size (rough approximation)
     const avgEventSize = 500; // bytes
-    const estimatedBytes = stats.eventCount * avgEventSize;
+    const estimatedBytes = events.length * avgEventSize;
     const estimatedSize = estimatedBytes < 1024 * 1024
       ? `${Math.round(estimatedBytes / 1024)} KB`
       : `${Math.round(estimatedBytes / (1024 * 1024))} MB`;
     
     // Get date range
     let dateRange = null;
-    const events = await db.getRecentEvents(1);
     if (events.length > 0) {
-      const allEvents = await db.getRecentEvents(10000);
-      if (allEvents.length > 0) {
-        const timestamps = allEvents.map(e => e.client_timestamp).filter(Boolean);
-        if (timestamps.length > 0) {
-          dateRange = {
-            earliest: new Date(Math.min(...timestamps)).toISOString(),
-            latest: new Date(Math.max(...timestamps)).toISOString()
-          };
-        }
+      const timestamps = events
+        .map(e => e.client_timestamp || Date.parse(e.local_timestamp))
+        .filter(Boolean);
+      
+      if (timestamps.length > 0) {
+        dateRange = {
+          earliest: new Date(Math.min(...timestamps)).toISOString(),
+          latest: new Date(Math.max(...timestamps)).toISOString()
+        };
       }
     }
     
     return {
-      eventCount: stats.eventCount,
-      patternCount: stats.patternCount,
-      profileCount: stats.profileCount,
-      sessionCount: stats.sessionCount,
+      eventCount: events.length,
+      journalCount: journals.length,
       estimatedSize,
       dateRange
     };
@@ -259,14 +314,32 @@ export async function getExportSummary(): Promise<{
 }
 
 /**
- * Export patterns as JSON file
+ * Export patterns as JSON file (from journal entries)
  */
 export async function downloadPatternsAsJSON(): Promise<void> {
   try {
     console.log('[Export] Starting patterns export...');
     
-    const db = await getDB();
-    const patterns = await db.getAllPatterns();
+    // Get patterns from journal entries
+    const journals = await getAllJournalsFromIndexedDB();
+    const patterns: any[] = [];
+    
+    for (const journal of journals) {
+      if (journal.pattern_summary?.frequency_patterns) {
+        patterns.push(...journal.pattern_summary.frequency_patterns.map((p: any) => ({
+          ...p,
+          date: journal.date,
+          type: 'frequency'
+        })));
+      }
+      if (journal.pattern_summary?.temporal_patterns) {
+        patterns.push(...journal.pattern_summary.temporal_patterns.map((p: any) => ({
+          ...p,
+          date: journal.date,
+          type: 'temporal'
+        })));
+      }
+    }
     
     const data = {
       exportDate: new Date().toISOString(),
@@ -310,49 +383,8 @@ export async function downloadPatternsAsJSON(): Promise<void> {
 }
 
 /**
- * Create automatic backup
- * Called periodically to create timestamped backups
+ * Create automatic backup (no-op since we're not using SQLite)
  */
 export async function createAutoBackup(): Promise<void> {
-  try {
-    console.log('[Export] Creating automatic backup...');
-    
-    const data = await exportAllData();
-    
-    // Create filename with timestamp
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-    const filename = `observe-create-backup-${timestamp}.json`;
-    
-    // Convert to JSON string (minified for backups)
-    const jsonString = JSON.stringify(data);
-    
-    // Store in chrome.storage.local as backup
-    const backupKey = `backup_${timestamp}`;
-    await chrome.storage.local.set({
-      [backupKey]: {
-        filename,
-        data: jsonString,
-        size: jsonString.length,
-        created: new Date().toISOString()
-      }
-    });
-    
-    // Keep only last 3 backups
-    const allKeys = await chrome.storage.local.get(null);
-    const backupKeys = Object.keys(allKeys)
-      .filter(key => key.startsWith('backup_'))
-      .sort()
-      .reverse();
-    
-    if (backupKeys.length > 3) {
-      const keysToRemove = backupKeys.slice(3);
-      await chrome.storage.local.remove(keysToRemove);
-      console.log(`[Export] Removed ${keysToRemove.length} old backups`);
-    }
-    
-    console.log(`[Export] ✅ Automatic backup created: ${filename}`);
-  } catch (error) {
-    console.error('[Export] Failed to create automatic backup:', error);
-  }
+  console.log('[Export] Auto-backup skipped (using IndexedDB)');
 }
-
