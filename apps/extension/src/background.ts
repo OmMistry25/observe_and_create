@@ -76,6 +76,23 @@ async function ensureOffscreenDocument() {
   }
 }
 
+/**
+ * Send message specifically to offscreen document
+ * Note: chrome.runtime.sendMessage broadcasts to all listeners,
+ * but offscreen documents will filter for their specific message types
+ */
+async function sendToOffscreen(message: any): Promise<any> {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage(message, (response) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+      } else {
+        resolve(response);
+      }
+    });
+  });
+}
+
 async function closeOffscreenDocument() {
   if (!offscreenDocumentCreated) {
     return;
@@ -149,6 +166,14 @@ chrome.runtime.onInstalled.addListener((details) => {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('[Background] Received message:', message.type, sender);
   
+  // Ignore messages meant for offscreen document (they'll be handled there)
+  const offscreenMessages = ['EXPORT_ALL_DATA', 'EXPORT_EVENTS_DATA', 'EXPORT_JOURNALS_DATA', 
+                              'CLASSIFY_EVENTS_BATCH', 'GENERATE_INSIGHTS', 'INIT_MODEL', 'GET_LLM_STATUS'];
+  if (offscreenMessages.includes(message.type)) {
+    // Don't handle these in background, they're for offscreen document
+    return false;
+  }
+  
   switch (message.type) {
     case 'PING':
       sendResponse({ status: 'ok' });
@@ -209,10 +234,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       // Service workers can't access IndexedDB, so we forward to offscreen document
       (async () => {
         try {
+          console.log('[Background] Starting export process...');
           await ensureOffscreenDocument();
+          
           // Forward request to offscreen document which has IndexedDB access
-          const response = await chrome.runtime.sendMessage({ type: 'EXPORT_ALL_DATA' });
-          if (response.success) {
+          console.log('[Background] Requesting data from offscreen document...');
+          const response = await sendToOffscreen({ type: 'EXPORT_ALL_DATA' });
+          
+          if (response && response.success) {
+            console.log('[Background] Data received, triggering download...');
             // Trigger download from background script
             const blob = new Blob([JSON.stringify(response.data, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
@@ -220,11 +250,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             const filename = `observe-create-export-${timestamp}.json`;
             
             await chrome.downloads.download({ url, filename, saveAs: true });
+            console.log('[Background] ✅ Export successful:', filename);
             sendResponse({ success: true });
           } else {
-            sendResponse({ success: false, error: response.error });
+            console.error('[Background] Export failed:', response?.error || 'Unknown error');
+            sendResponse({ success: false, error: response?.error || 'Failed to get data from offscreen' });
           }
-        } catch (error) {
+        } catch (error: any) {
           console.error('[Background] Export failed:', error);
           sendResponse({ success: false, error: error.message });
         }
@@ -236,8 +268,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       (async () => {
         try {
           await ensureOffscreenDocument();
-          const response = await chrome.runtime.sendMessage({ type: 'EXPORT_EVENTS_DATA' });
-          if (response.success) {
+          const response = await sendToOffscreen({ type: 'EXPORT_EVENTS_DATA' });
+          if (response && response.success) {
             // Convert to CSV
             const events = response.events;
             const headers = ['id', 'timestamp', 'type', 'url', 'domain', 'title', 'client_timestamp', 'timezone_offset', 'device_id', 'session_id'];
@@ -270,8 +302,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       (async () => {
         try {
           await ensureOffscreenDocument();
-          const response = await chrome.runtime.sendMessage({ type: 'EXPORT_JOURNALS_DATA' });
-          if (response.success) {
+          const response = await sendToOffscreen({ type: 'EXPORT_JOURNALS_DATA' });
+          if (response && response.success) {
             const journals = response.journals;
             const patterns: any[] = [];
             
