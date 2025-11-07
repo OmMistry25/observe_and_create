@@ -350,26 +350,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
  */
 async function getAllEventsFromIndexedDB(): Promise<any[]> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open('ObserveCreateDB', 1);
+    const request = indexedDB.open('observe_create_offline', 1);
 
     request.onerror = () => reject(request.error);
 
     request.onsuccess = () => {
       const db = request.result;
       
-      if (!db.objectStoreNames.contains('offline-queue')) {
+      if (!db.objectStoreNames.contains('event_queue')) {
         resolve([]);
         db.close();
         return;
       }
 
-      const transaction = db.transaction(['offline-queue'], 'readonly');
-      const store = transaction.objectStore('offline-queue');
+      const transaction = db.transaction(['event_queue'], 'readonly');
+      const store = transaction.objectStore('event_queue');
       const getAllRequest = store.getAll();
       
       getAllRequest.onsuccess = () => {
         db.close();
         const items = (getAllRequest.result || []) as any[];
+        // Items are QueuedEvent objects with { id, event, timestamp, retryCount, nextRetryAt }
         const events = items.map(item => item.event).filter(e => e);
         resolve(events);
       };
