@@ -10,6 +10,7 @@ import { TimelineChart } from '@/components/TimelineChart';
 import InsightCards from '@/components/InsightCards';
 import WorkflowComparison from '@/components/WorkflowComparison';
 import ProductivityDashboard from '@/components/ProductivityDashboard';
+import { DailyJournal } from '@/components/DailyJournal';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -215,6 +216,9 @@ export default function DashboardPage() {
               </Button>
             </div>
           </div>
+
+          {/* Daily Digital Journal */}
+          <DailyJournal />
 
           {/* Productivity Overview */}
           <ProductivityDashboard />

@@ -46,6 +46,7 @@ async function buildAll() {
     await buildScript('background', resolve(__dirname, 'src/background.ts'));
     await buildScript('content', resolve(__dirname, 'src/content.ts'));
     await buildScript('popup', resolve(__dirname, 'src/popup.ts'));
+    await buildScript('offscreen', resolve(__dirname, 'src/offscreen.ts'));
     
     // Copy static files
     console.log('\nCopying static files...');
@@ -61,6 +62,12 @@ async function buildAll() {
       resolve(distDir, 'popup.html')
     );
     console.log('✓ Copied popup.html');
+    
+    copyFileSync(
+      resolve(__dirname, 'src/offscreen.html'),
+      resolve(distDir, 'offscreen.html')
+    );
+    console.log('✓ Copied offscreen.html');
     
     // Copy SQL.js WASM file
     try {

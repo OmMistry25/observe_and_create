@@ -30,32 +30,65 @@ import {
   createAutoBackup
 } from './export';
 
-// Import local LLM features
-import { 
-  initializeIntentClassifier, 
-  classifyIntent, 
-  isClassifierReady 
-} from './localInference';
-import { 
-  preloadModel, 
-  isModelReady,
-  generateEmbedding
-} from './localEmbeddings';
+// Import journal generator
 import {
-  clusterPatterns,
-  PatternCluster
-} from './semanticClustering';
+  generateDailyJournal,
+  saveJournalEntry,
+  getJournalEntry,
+  getAllJournalEntries,
+  type JournalEntry,
+} from './journalGenerator';
 
 console.log('[Background] Service worker started');
 
-// NOTE: Local LLM (Transformers.js) is disabled in service workers
-// Service workers don't have access to URL.createObjectURL and Web Workers
-// which Transformers.js requires. This is a Chrome MV3 limitation.
-// 
-// Alternative: Could use offscreen documents (Chrome 109+) or move to content script
-// For now: Extension works without local LLM, using pattern detection only
-console.log('[Background] ℹ️ Local LLM disabled (service worker limitation)');
-console.log('[Background] Pattern detection active (frequency + temporal)');
+// Offscreen document management for local LLM
+let offscreenDocumentCreated = false;
+
+async function ensureOffscreenDocument() {
+  if (offscreenDocumentCreated) {
+    return true;
+  }
+
+  try {
+    // Check if offscreen document already exists
+    const existingContexts = await chrome.runtime.getContexts({
+      contextTypes: ['OFFSCREEN_DOCUMENT' as any],
+    });
+
+    if (existingContexts.length > 0) {
+      offscreenDocumentCreated = true;
+      return true;
+    }
+
+    // Create offscreen document
+    await chrome.offscreen.createDocument({
+      url: 'offscreen.html',
+      reasons: ['WORKERS' as any], // For Web Workers/WASM
+      justification: 'Running local LLM (Transformers.js) for privacy-preserving intent classification',
+    });
+
+    offscreenDocumentCreated = true;
+    console.log('[Background] ✅ Offscreen document created for LLM processing');
+    return true;
+  } catch (error) {
+    console.warn('[Background] ⚠️ Failed to create offscreen document:', error);
+    return false;
+  }
+}
+
+async function closeOffscreenDocument() {
+  if (!offscreenDocumentCreated) {
+    return;
+  }
+
+  try {
+    await chrome.offscreen.closeDocument();
+    offscreenDocumentCreated = false;
+    console.log('[Background] Offscreen document closed');
+  } catch (error) {
+    console.warn('[Background] Failed to close offscreen document:', error);
+  }
+}
 
 // Initialize local database (optional - falls back to IndexedDB if fails)
 let localDB: Awaited<ReturnType<typeof getDB>> | null = null;
@@ -212,6 +245,66 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         })
         .catch(error => sendResponse({ success: false, error: error.message }));
       return true;
+      
+    case 'GENERATE_JOURNAL':
+      // Manually trigger journal generation
+      (async () => {
+        const journal = await generateJournal(message.date, { useLLM: message.useLLM ?? true });
+        if (journal) {
+          sendResponse({ success: true, journal });
+        } else {
+          sendResponse({ success: false, error: 'Failed to generate journal' });
+        }
+      })();
+      return true;
+      
+    case 'GET_JOURNAL':
+      // Get journal entry for a specific date
+      (async () => {
+        const journal = await getJournalEntry(message.date);
+        sendResponse({ success: true, journal });
+      })();
+      return true;
+      
+    case 'GET_ALL_JOURNALS':
+      // Get all journal entries
+      (async () => {
+        const journals = await getAllJournalEntries();
+        sendResponse({ success: true, journals });
+      })();
+      return true;
+      
+    case 'GET_JOURNAL_CONFIG':
+      // Get journal configuration
+      (async () => {
+        const config = await getJournalConfig();
+        sendResponse({ success: true, config });
+      })();
+      return true;
+      
+    case 'UPDATE_JOURNAL_CONFIG':
+      // Update journal configuration
+      (async () => {
+        await updateJournalConfig(message.config);
+        sendResponse({ success: true });
+      })();
+      return true;
+      
+    case 'CLASSIFY_EVENTS_BATCH':
+    case 'GENERATE_INSIGHTS':
+    case 'INIT_MODEL':
+    case 'GET_LLM_STATUS':
+      // Forward to offscreen document for LLM processing
+      if (offscreenDocumentCreated) {
+        // Forward message to offscreen document
+        chrome.runtime.sendMessage(message)
+          .then(response => sendResponse(response))
+          .catch(error => sendResponse({ success: false, error: error.message }));
+        return true;
+      } else {
+        sendResponse({ success: false, error: 'Offscreen document not available' });
+      }
+      break;
       
     default:
       console.warn('[Background] Unknown message type:', message.type);
@@ -377,12 +470,173 @@ async function retryQueuedEvents() {
 }
 
 
+/**
+ * Generate daily journal from stored events
+ */
+async function generateJournal(date?: string, options: { useLLM?: boolean } = {}): Promise<JournalEntry | null> {
+  try {
+    const targetDate = date || new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    console.log(`[Background] 📔 Generating journal for ${targetDate}...`);
+
+    // Get events for the target date from IndexedDB
+    const events = await getEventsForDate(targetDate);
+    
+    if (events.length === 0) {
+      console.log('[Background] No events found for date, skipping journal generation');
+      return null;
+    }
+
+    console.log(`[Background] Found ${events.length} events for ${targetDate}`);
+
+    // Ensure offscreen document is available for LLM if needed
+    if (options.useLLM) {
+      const offscreenReady = await ensureOffscreenDocument();
+      if (!offscreenReady) {
+        console.warn('[Background] Offscreen document not available, generating without LLM');
+        options.useLLM = false;
+      }
+    }
+
+    // Generate journal entry
+    const journal = await generateDailyJournal(events, targetDate, {
+      classifyIntents: options.useLLM,
+    });
+
+    // Save journal entry
+    await saveJournalEntry(journal);
+
+    console.log('[Background] ✅ Journal generated and saved:', journal.id);
+
+    // Close offscreen document to free memory
+    if (options.useLLM) {
+      await closeOffscreenDocument();
+    }
+
+    return journal;
+  } catch (error) {
+    console.error('[Background] Failed to generate journal:', error);
+    return null;
+  }
+}
+
+/**
+ * Get events for a specific date from IndexedDB
+ */
+async function getEventsForDate(date: string): Promise<any[]> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('ObserveCreateDB', 1);
+
+    request.onerror = () => reject(request.error);
+
+    request.onsuccess = () => {
+      const db = request.result;
+      
+      if (!db.objectStoreNames.contains('offline-queue')) {
+        resolve([]);
+        return;
+      }
+
+      const transaction = db.transaction(['offline-queue'], 'readonly');
+      const store = transaction.objectStore('offline-queue');
+      const getAllRequest = store.getAll();
+      
+      getAllRequest.onsuccess = () => {
+        const items = (getAllRequest.result || []) as any[];
+        
+        // Filter events for the target date
+        const targetDateStart = new Date(date + 'T00:00:00').getTime();
+        const targetDateEnd = new Date(date + 'T23:59:59').getTime();
+        
+        const filteredEvents = items
+          .map(item => item.event)
+          .filter(event => {
+            const timestamp = event.client_timestamp || Date.parse(event.local_timestamp);
+            return timestamp >= targetDateStart && timestamp <= targetDateEnd;
+          });
+        
+        resolve(filteredEvents);
+      };
+      
+      getAllRequest.onerror = () => reject(getAllRequest.error);
+    };
+  });
+}
+
+/**
+ * Get journal configuration
+ */
+async function getJournalConfig(): Promise<{
+  enabled: boolean;
+  frequency: 'hourly' | 'daily' | 'weekly' | 'custom';
+  useLLM: boolean;
+  lastRun?: string;
+}> {
+  const result = await chrome.storage.local.get(['journalConfig']);
+  return result.journalConfig || {
+    enabled: true,
+    frequency: 'daily',
+    useLLM: true,
+  };
+}
+
+/**
+ * Update journal configuration
+ */
+async function updateJournalConfig(config: Partial<{
+  enabled: boolean;
+  frequency: 'hourly' | 'daily' | 'weekly' | 'custom';
+  useLLM: boolean;
+}>): Promise<void> {
+  const currentConfig = await getJournalConfig();
+  const newConfig = { ...currentConfig, ...config };
+  await chrome.storage.local.set({ journalConfig: newConfig });
+  
+  // Recreate alarm with new schedule
+  if (chrome.alarms) {
+    await chrome.alarms.clear('generateJournal');
+    setupJournalAlarm(newConfig.frequency);
+  }
+}
+
+/**
+ * Setup journal generation alarm
+ */
+function setupJournalAlarm(frequency: 'hourly' | 'daily' | 'weekly' | 'custom') {
+  if (!chrome.alarms) return;
+
+  let periodInMinutes: number;
+  
+  switch (frequency) {
+    case 'hourly':
+      periodInMinutes = 60;
+      break;
+    case 'daily':
+      periodInMinutes = 24 * 60;
+      break;
+    case 'weekly':
+      periodInMinutes = 7 * 24 * 60;
+      break;
+    default:
+      periodInMinutes = 24 * 60; // Default to daily
+  }
+
+  chrome.alarms.create('generateJournal', { periodInMinutes });
+  console.log(`[Background] Journal alarm set: ${frequency} (every ${periodInMinutes} minutes)`);
+}
+
 // Keep service worker alive
 // Note: Service workers in MV3 can be terminated at any time
 // Use chrome.alarms for periodic tasks
 if (chrome.alarms) {
   chrome.alarms.create('keepAlive', { periodInMinutes: 1 });
   chrome.alarms.create('saveEvents', { periodInMinutes: 0.5 }); // Every 30 seconds
+  
+  // Setup journal generation alarm
+  getJournalConfig().then(config => {
+    if (config.enabled) {
+      setupJournalAlarm(config.frequency);
+    }
+  });
 
   chrome.alarms.onAlarm.addListener(async (alarm) => {
     if (alarm.name === 'keepAlive') {
@@ -390,6 +644,10 @@ if (chrome.alarms) {
     } else if (alarm.name === 'saveEvents') {
       await uploadEventBatch(); // Actually saves to local DB now
       await retryQueuedEvents(); // Retry any failed saves from IndexedDB queue
+    } else if (alarm.name === 'generateJournal') {
+      console.log('[Background] 📔 Daily journal alarm triggered');
+      const config = await getJournalConfig();
+      await generateJournal(undefined, { useLLM: config.useLLM });
     }
   });
 } else {

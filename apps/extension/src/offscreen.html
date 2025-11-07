@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Offscreen Document - Observe & Create</title>
+</head>
+<body>
+  <!-- 
+    Offscreen Document for Local LLM Processing
+    
+    This hidden page provides a full DOM context where Transformers.js can run.
+    Service workers don't have access to URL.createObjectURL and Web Workers,
+    but offscreen documents do.
+  -->
+  <script src="offscreen.js"></script>
+</body>
+</html>
+
