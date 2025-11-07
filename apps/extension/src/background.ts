@@ -21,6 +21,15 @@ import {
 // Import local database
 import { getDB, type Event as DBEvent } from '@observe-create/storage';
 
+// Import export utilities
+import { 
+  downloadDataAsJSON, 
+  downloadEventsAsCSV, 
+  downloadPatternsAsJSON,
+  getExportSummary,
+  createAutoBackup
+} from './export';
+
 console.log('[Background] Service worker started');
 
 // Initialize local database
@@ -109,6 +118,48 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       // Could track this in analytics or sync to server
       sendResponse({ acknowledged: true });
       break;
+      
+    case 'EXPORT_DATA':
+      // Export all data as JSON
+      downloadDataAsJSON()
+        .then(() => sendResponse({ success: true }))
+        .catch(error => sendResponse({ success: false, error: error.message }));
+      return true; // Keep channel open for async response
+      
+    case 'EXPORT_EVENTS_CSV':
+      // Export events as CSV
+      downloadEventsAsCSV()
+        .then(() => sendResponse({ success: true }))
+        .catch(error => sendResponse({ success: false, error: error.message }));
+      return true;
+      
+    case 'EXPORT_PATTERNS':
+      // Export patterns as JSON
+      downloadPatternsAsJSON()
+        .then(() => sendResponse({ success: true }))
+        .catch(error => sendResponse({ success: false, error: error.message }));
+      return true;
+      
+    case 'GET_EXPORT_SUMMARY':
+      // Get export summary
+      getExportSummary()
+        .then(summary => sendResponse({ success: true, summary }))
+        .catch(error => sendResponse({ success: false, error: error.message }));
+      return true;
+      
+    case 'GET_DB_STATS':
+      // Get database statistics
+      initLocalDB()
+        .then(db => {
+          if (db) {
+            const stats = db.getStats();
+            sendResponse({ success: true, stats });
+          } else {
+            sendResponse({ success: false, error: 'Database not initialized' });
+          }
+        })
+        .catch(error => sendResponse({ success: false, error: error.message }));
+      return true;
       
     default:
       console.warn('[Background] Unknown message type:', message.type);
