@@ -94,12 +94,12 @@ export class LocalDB {
       await this.createSchema();
 
       this.isInitialized = true;
-      console.log('[LocalDB] ✅ Initialization complete');
+      console.log('[LocalDB] Initialization complete');
 
       // Set up periodic backup
       this.setupPeriodicBackup();
     } catch (error) {
-      console.error('[LocalDB] ❌ Initialization failed:', error);
+      console.error('[LocalDB] Initialization failed:', error);
       throw error;
     }
   }
