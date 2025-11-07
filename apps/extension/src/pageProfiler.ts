@@ -3,7 +3,7 @@
  * Part of Issue #1: Learns page structure automatically and triggers DOM extraction only for frequently visited pages
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { getDB } from '@observe-create/storage';
 
 export interface PageProfile {
   urlPattern: string; // Normalized URL (without query params)
@@ -60,61 +60,25 @@ export class PageProfiler {
   private subpathCache: Map<string, SubpathFrequency> = new Map();
   private dbName = 'PageProfilerDB';
   private storeName = 'profiles';
-  public supabase: any = null;
+  private localDB: Awaited<ReturnType<typeof getDB>> | null = null;
 
   constructor() {
     this.initIndexedDB();
     this.loadProfilesFromStorage();
-    this.initSupabase();
+    this.initLocalDB();
   }
 
   /**
-   * Initialize Supabase client for uploading profiles
+   * Initialize local SQLite database for storing page profiles
    */
-  public async initSupabase(): Promise<void> {
+  private async initLocalDB(): Promise<void> {
     try {
-      // Check if extension context is still valid
-      if (!chrome?.storage?.local) {
-        console.warn('[PageProfiler] ❌ Extension context invalidated, skipping Supabase init');
-        return;
-      }
-
-      console.log('[PageProfiler] Attempting to initialize Supabase client...');
-      
-      // Get Supabase config from extension storage
-      const result = await chrome.storage.local.get(['supabaseUrl', 'supabaseAnonKey']);
-      console.log('[PageProfiler] Storage result:', { 
-        hasUrl: !!result.supabaseUrl, 
-        hasKey: !!result.supabaseAnonKey,
-        url: result.supabaseUrl ? result.supabaseUrl.substring(0, 30) + '...' : 'none'
-      });
-      
-      // Also check for session to see if sync happened
-      const sessionResult = await chrome.storage.local.get(['session']);
-      console.log('[PageProfiler] Session check:', {
-        hasSession: !!sessionResult.session,
-        sessionKeys: sessionResult.session ? Object.keys(sessionResult.session) : []
-      });
-      
-      if (result.supabaseUrl && result.supabaseAnonKey) {
-        // Only create client if we don't already have one
-        if (!this.supabase) {
-          this.supabase = createClient(result.supabaseUrl, result.supabaseAnonKey);
-          console.log('[PageProfiler] ✅ Supabase client initialized successfully');
-        } else {
-          console.log('[PageProfiler] ✅ Supabase client already initialized');
-        }
-      } else {
-        console.warn('[PageProfiler] ❌ Supabase config not found in storage');
-        console.warn('[PageProfiler] Available keys:', Object.keys(result));
-        console.warn('[PageProfiler] All storage keys:', await chrome.storage.local.get());
+      if (!this.localDB) {
+        this.localDB = await getDB();
+        console.log('[PageProfiler] ✅ Local database initialized');
       }
     } catch (error) {
-      if (error.message?.includes('Extension context invalidated')) {
-        console.warn('[PageProfiler] ❌ Extension context invalidated, will retry later');
-      } else {
-        console.warn('[PageProfiler] ❌ Failed to initialize Supabase:', error);
-      }
+      console.warn('[PageProfiler] ❌ Failed to initialize local database:', error);
     }
   }
 
@@ -160,7 +124,7 @@ export class PageProfiler {
   }
 
   /**
-   * Save profile to IndexedDB and upload to Supabase
+   * Save profile to IndexedDB and local SQLite database
    */
   private async saveProfile(profile: PageProfile): Promise<void> {
     try {
@@ -170,73 +134,46 @@ export class PageProfiler {
       const store = transaction.objectStore(this.storeName);
       store.put(profile);
       
-      // Upload to Supabase
-      await this.uploadProfileToSupabase(profile);
+      // Save to local SQLite database
+      await this.saveProfileToLocalDB(profile);
     } catch (error) {
       console.warn('[PageProfiler] Failed to save profile:', error);
     }
   }
 
   /**
-   * Upload profile to Supabase page_profiles table
+   * Save profile to local SQLite database
    */
-  private async uploadProfileToSupabase(profile: PageProfile): Promise<void> {
-    console.log('[PageProfiler] Attempting to upload profile to Supabase...');
-    
-    // Check if extension context is still valid
-    if (!chrome?.storage?.local) {
-      console.warn('[PageProfiler] ❌ Extension context invalidated, skipping upload');
-      return;
-    }
-    
-    // Try to initialize Supabase if not already done
-    if (!this.supabase) {
-      console.log('[PageProfiler] Supabase client not initialized, attempting to initialize...');
-      await this.initSupabase();
-      
-      if (!this.supabase) {
-        console.warn('[PageProfiler] ❌ Supabase client not initialized, skipping upload');
-        return;
-      }
-    }
-
+  private async saveProfileToLocalDB(profile: PageProfile): Promise<void> {
     try {
-      console.log('[PageProfiler] Getting user session...');
-      // Get current user session
-      const { data: { session } } = await this.supabase.auth.getSession();
-      if (!session) {
-        console.warn('[PageProfiler] ❌ No user session, skipping profile upload');
-        return;
+      if (!this.localDB) {
+        await this.initLocalDB();
+        if (!this.localDB) {
+          console.warn('[PageProfiler] ❌ Local database not initialized, skipping save');
+          return;
+        }
       }
-      
-      console.log('[PageProfiler] ✅ User session found:', session.user.email);
 
-      // Prepare profile data for Supabase
-      const profileData = {
-        user_id: session.user.id,
-        url_pattern: profile.urlPattern,
+      // Convert profile to database format
+      const dbProfile = {
+        url_path: profile.urlPattern,
         visit_count: profile.visitCount,
-        dom_structure: profile.domStructure,
-        content_signals: profile.contentSignals,
-        extraction_rules: profile.extractionRules,
-        last_profiled: new Date().toISOString(),
+        dom_profile: {
+          domStructure: profile.domStructure,
+          contentSignals: profile.contentSignals,
+          extractionRules: profile.extractionRules,
+          profileVersion: profile.profileVersion
+        },
+        last_updated: new Date().toISOString(),
+        created_at: new Date().toISOString()
       };
 
-      // Upsert profile (update if exists, insert if new)
-      const { error } = await this.supabase
-        .from('page_profiles')
-        .upsert(profileData, { 
-          onConflict: 'user_id,url_pattern',
-          ignoreDuplicates: false 
-        });
-
-      if (error) {
-        console.warn('[PageProfiler] Failed to upload profile to Supabase:', error);
-      } else {
-        console.log(`[PageProfiler] ✅ Uploaded profile for ${profile.urlPattern} to Supabase`);
-      }
+      // Upsert profile
+      this.localDB.upsertPageProfile(dbProfile);
+      
+      console.log(`[PageProfiler] ✅ Saved profile for ${profile.urlPattern} to local database`);
     } catch (error) {
-      console.warn('[PageProfiler] Error uploading profile to Supabase:', error);
+      console.warn('[PageProfiler] Error saving profile to local database:', error);
     }
   }
 
