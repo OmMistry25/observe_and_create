@@ -312,6 +312,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           });
           break;
 
+        case 'EXPORT_ALL_DATA':
+          // Export all data from IndexedDB
+          const allData = await exportAllDataFromIndexedDB();
+          sendResponse({ success: true, data: allData });
+          break;
+
+        case 'EXPORT_EVENTS_DATA':
+          // Export just events
+          const events = await getAllEventsFromIndexedDB();
+          sendResponse({ success: true, events });
+          break;
+
+        case 'EXPORT_JOURNALS_DATA':
+          // Export just journals
+          const journals = await getAllJournalsFromIndexedDB();
+          sendResponse({ success: true, journals });
+          break;
+
         default:
           sendResponse({ success: false, error: 'Unknown message type' });
       }
@@ -326,6 +344,115 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   return true; // Keep channel open for async response
 });
+
+/**
+ * Get all events from IndexedDB
+ */
+async function getAllEventsFromIndexedDB(): Promise<any[]> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('ObserveCreateDB', 1);
+
+    request.onerror = () => reject(request.error);
+
+    request.onsuccess = () => {
+      const db = request.result;
+      
+      if (!db.objectStoreNames.contains('offline-queue')) {
+        resolve([]);
+        db.close();
+        return;
+      }
+
+      const transaction = db.transaction(['offline-queue'], 'readonly');
+      const store = transaction.objectStore('offline-queue');
+      const getAllRequest = store.getAll();
+      
+      getAllRequest.onsuccess = () => {
+        db.close();
+        const items = (getAllRequest.result || []) as any[];
+        const events = items.map(item => item.event).filter(e => e);
+        resolve(events);
+      };
+      
+      getAllRequest.onerror = () => {
+        db.close();
+        reject(getAllRequest.error);
+      };
+    };
+  });
+}
+
+/**
+ * Get all journals from IndexedDB
+ */
+async function getAllJournalsFromIndexedDB(): Promise<any[]> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('ObserveCreateDB', 1);
+
+    request.onerror = () => reject(request.error);
+
+    request.onsuccess = () => {
+      const db = request.result;
+      
+      if (!db.objectStoreNames.contains('journals')) {
+        resolve([]);
+        db.close();
+        return;
+      }
+
+      const transaction = db.transaction(['journals'], 'readonly');
+      const store = transaction.objectStore('journals');
+      const getAllRequest = store.getAll();
+      
+      getAllRequest.onsuccess = () => {
+        db.close();
+        resolve(getAllRequest.result || []);
+      };
+      
+      getAllRequest.onerror = () => {
+        db.close();
+        reject(getAllRequest.error);
+      };
+    };
+  });
+}
+
+/**
+ * Export all data as structured object
+ */
+async function exportAllDataFromIndexedDB(): Promise<any> {
+  const events = await getAllEventsFromIndexedDB();
+  const journals = await getAllJournalsFromIndexedDB();
+  
+  let earliestDate = new Date().toISOString();
+  let latestDate = new Date().toISOString();
+  
+  if (events.length > 0) {
+    const timestamps = events
+      .map(e => e.client_timestamp || Date.parse(e.local_timestamp))
+      .filter(Boolean);
+    
+    if (timestamps.length > 0) {
+      earliestDate = new Date(Math.min(...timestamps)).toISOString();
+      latestDate = new Date(Math.max(...timestamps)).toISOString();
+    }
+  }
+  
+  return {
+    metadata: {
+      exportDate: new Date().toISOString(),
+      version: '1.0',
+      totalEvents: events.length,
+      totalJournals: journals.length,
+      dateRange: {
+        earliest: earliestDate,
+        latest: latestDate
+      }
+    },
+    events,
+    journals
+  };
+}
 
 // Auto-initialize on startup
 console.log('[Offscreen] Starting auto-initialization...');

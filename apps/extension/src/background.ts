@@ -206,23 +206,110 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       
     case 'EXPORT_DATA':
       // Export all data as JSON
-      downloadDataAsJSON()
-        .then(() => sendResponse({ success: true }))
-        .catch(error => sendResponse({ success: false, error: error.message }));
+      // Service workers can't access IndexedDB, so we forward to offscreen document
+      (async () => {
+        try {
+          await ensureOffscreenDocument();
+          // Forward request to offscreen document which has IndexedDB access
+          const response = await chrome.runtime.sendMessage({ type: 'EXPORT_ALL_DATA' });
+          if (response.success) {
+            // Trigger download from background script
+            const blob = new Blob([JSON.stringify(response.data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+            const filename = `observe-create-export-${timestamp}.json`;
+            
+            await chrome.downloads.download({ url, filename, saveAs: true });
+            sendResponse({ success: true });
+          } else {
+            sendResponse({ success: false, error: response.error });
+          }
+        } catch (error) {
+          console.error('[Background] Export failed:', error);
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
       return true; // Keep channel open for async response
       
     case 'EXPORT_EVENTS_CSV':
       // Export events as CSV
-      downloadEventsAsCSV()
-        .then(() => sendResponse({ success: true }))
-        .catch(error => sendResponse({ success: false, error: error.message }));
+      (async () => {
+        try {
+          await ensureOffscreenDocument();
+          const response = await chrome.runtime.sendMessage({ type: 'EXPORT_EVENTS_DATA' });
+          if (response.success) {
+            // Convert to CSV
+            const events = response.events;
+            const headers = ['id', 'timestamp', 'type', 'url', 'domain', 'title', 'client_timestamp', 'timezone_offset', 'device_id', 'session_id'];
+            const rows = events.map((event: any) => [
+              event.id || '', event.local_timestamp || '', event.type || '', event.url || '',
+              event.domain || '', event.title || '', event.client_timestamp || '',
+              event.timezone_offset || '', event.device_id || '', event.session_id || ''
+            ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
+            const csv = [headers.join(','), ...rows].join('\n');
+            
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+            const filename = `observe-create-events-${timestamp}.csv`;
+            
+            await chrome.downloads.download({ url, filename, saveAs: true });
+            sendResponse({ success: true });
+          } else {
+            sendResponse({ success: false, error: response.error });
+          }
+        } catch (error) {
+          console.error('[Background] CSV export failed:', error);
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
       return true;
       
     case 'EXPORT_PATTERNS':
       // Export patterns as JSON
-      downloadPatternsAsJSON()
-        .then(() => sendResponse({ success: true }))
-        .catch(error => sendResponse({ success: false, error: error.message }));
+      (async () => {
+        try {
+          await ensureOffscreenDocument();
+          const response = await chrome.runtime.sendMessage({ type: 'EXPORT_JOURNALS_DATA' });
+          if (response.success) {
+            const journals = response.journals;
+            const patterns: any[] = [];
+            
+            for (const journal of journals) {
+              if (journal.pattern_summary?.frequency_patterns) {
+                patterns.push(...journal.pattern_summary.frequency_patterns.map((p: any) => ({
+                  ...p, date: journal.date, type: 'frequency'
+                })));
+              }
+              if (journal.pattern_summary?.temporal_patterns) {
+                patterns.push(...journal.pattern_summary.temporal_patterns.map((p: any) => ({
+                  ...p, date: journal.date, type: 'temporal'
+                })));
+              }
+            }
+            
+            const data = {
+              exportDate: new Date().toISOString(),
+              version: '1.0',
+              totalPatterns: patterns.length,
+              patterns
+            };
+            
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+            const filename = `observe-create-patterns-${timestamp}.json`;
+            
+            await chrome.downloads.download({ url, filename, saveAs: true });
+            sendResponse({ success: true });
+          } else {
+            sendResponse({ success: false, error: response.error });
+          }
+        } catch (error) {
+          console.error('[Background] Patterns export failed:', error);
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
       return true;
       
     case 'GET_EXPORT_SUMMARY':
