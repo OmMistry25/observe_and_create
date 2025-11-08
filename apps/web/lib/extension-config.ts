@@ -33,11 +33,30 @@ export async function isExtensionInstalled(): Promise<boolean> {
   // Use type assertion to access chrome global
   const chromeGlobal = (window as any).chrome;
   if (!chromeGlobal || !chromeGlobal.runtime) {
+    console.log('[Extension] Chrome runtime not available');
     return false; // Not in Chrome browser or extensions API not available
   }
 
   try {
-    const response = await chromeGlobal.runtime.sendMessage(EXTENSION_ID, { type: 'PING' });
+    console.log('[Extension] Sending PING to extension ID:', EXTENSION_ID);
+    
+    // Add a timeout to prevent infinite hanging
+    const pingPromise = new Promise<any>((resolve, reject) => {
+      chromeGlobal.runtime.sendMessage(EXTENSION_ID, { type: 'PING' }, (response: any) => {
+        if (chromeGlobal.runtime.lastError) {
+          reject(new Error(chromeGlobal.runtime.lastError.message));
+        } else {
+          resolve(response);
+        }
+      });
+    });
+    
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Extension check timeout')), 3000)
+    );
+    
+    const response = await Promise.race([pingPromise, timeoutPromise]);
+    console.log('[Extension] PING response:', response);
     return response?.status === 'ok';
   } catch (error) {
     console.warn('[Extension] Not installed or unreachable:', error);
