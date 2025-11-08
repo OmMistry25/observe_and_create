@@ -203,6 +203,107 @@ function summarizeTemporalPatterns(): Array<{
 }
 
 /**
+ * Detect frequency patterns from a set of events
+ * This re-runs pattern detection on the events during journal generation
+ */
+function detectFrequencyPatternsFromEvents(events: Array<any>): Array<{
+  description: string;
+  confidence: number;
+  occurrences: number;
+}> {
+  // Group sequential events by similarity
+  const sequences = new Map<string, { pattern: string[]; count: number; confidence: number }>();
+  
+  // Simple sliding window pattern detection
+  for (let windowSize = 2; windowSize <= Math.min(5, events.length); windowSize++) {
+    for (let i = 0; i <= events.length - windowSize; i++) {
+      const window = events.slice(i, i + windowSize);
+      const pattern = window.map(e => `${e.type}@${e.domain || 'unknown'}`);
+      const key = pattern.join('→');
+      
+      if (!sequences.has(key)) {
+        sequences.set(key, { pattern, count: 0, confidence: 0 });
+      }
+      sequences.get(key)!.count++;
+    }
+  }
+  
+  // Filter and calculate confidence
+  const patterns: Array<{ description: string; confidence: number; occurrences: number }> = [];
+  
+  for (const [key, data] of sequences.entries()) {
+    if (data.count >= 3) { // Minimum 3 occurrences
+      const confidence = Math.min(data.count / 10, 1.0); // Cap at 1.0
+      patterns.push({
+        description: data.pattern.map(p => p.split('@')[0]).join(' → '),
+        confidence,
+        occurrences: data.count,
+      });
+    }
+  }
+  
+  // Sort by occurrences and return top 10
+  return patterns.sort((a, b) => b.occurrences - a.occurrences).slice(0, 10);
+}
+
+/**
+ * Detect temporal patterns from a set of events
+ * Looks for time-based patterns (hourly, daily, etc.)
+ */
+function detectTemporalPatternsFromEvents(events: Array<any>): Array<{
+  type: string;
+  description: string;
+  confidence: number;
+}> {
+  const patterns: Array<{ type: string; description: string; confidence: number }> = [];
+  
+  // Group events by hour
+  const hourlyActivity = new Map<number, number>();
+  for (const event of events) {
+    const timestamp = event.client_timestamp || Date.parse(event.local_timestamp);
+    const hour = new Date(timestamp).getHours();
+    hourlyActivity.set(hour, (hourlyActivity.get(hour) || 0) + 1);
+  }
+  
+  // Find peak hours
+  const sortedHours = Array.from(hourlyActivity.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3);
+  
+  for (const [hour, count] of sortedHours) {
+    if (count >= 10) { // At least 10 events in that hour
+      const confidence = Math.min(count / 100, 1.0);
+      const timeOfDay = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
+      patterns.push({
+        type: 'hourly',
+        description: `Peak activity during ${timeOfDay} hours (${hour}:00)`,
+        confidence,
+      });
+    }
+  }
+  
+  // Group by domain for session patterns
+  const domainSessions = new Map<string, number>();
+  for (const event of events) {
+    const domain = event.domain || 'unknown';
+    domainSessions.set(domain, (domainSessions.get(domain) || 0) + 1);
+  }
+  
+  const topDomain = Array.from(domainSessions.entries())
+    .sort((a, b) => b[1] - a[1])[0];
+  
+  if (topDomain && topDomain[1] >= 20) {
+    patterns.push({
+      type: 'session',
+      description: `Focused work session on ${topDomain[0]}`,
+      confidence: Math.min(topDomain[1] / 100, 1.0),
+    });
+  }
+  
+  return patterns.slice(0, 5); // Return top 5
+}
+
+/**
  * Generate journal entry from events
  */
 export async function generateDailyJournal(
@@ -214,8 +315,23 @@ export async function generateDailyJournal(
 ): Promise<JournalEntry> {
   console.log(`[JournalGenerator] Generating journal for ${date} with ${events.length} events`);
 
+  // Filter out test/development domains
+  const testDomains = [
+    'observeandcreate-',  // Matches all vercel deployments
+    'localhost',
+    '127.0.0.1',
+  ];
+  
+  const filteredEvents = events.filter(event => {
+    const domain = event.domain || '';
+    const url = event.url || '';
+    return !testDomains.some(testDomain => domain.includes(testDomain) || url.includes(testDomain));
+  });
+  
+  console.log(`[JournalGenerator] Filtered ${events.length} → ${filteredEvents.length} events (removed test domains)`);
+
   // Calculate domain stats
-  const topDomains = calculateDomainStats(events);
+  const topDomains = calculateDomainStats(filteredEvents);
   console.log(`[JournalGenerator] Top domains:`, topDomains);
 
   // Intent classification
@@ -226,7 +342,7 @@ export async function generateDailyJournal(
     try {
       const response = await chrome.runtime.sendMessage({
         type: 'CLASSIFY_EVENTS_BATCH',
-        events: events.map(e => ({
+        events: filteredEvents.map(e => ({
           id: e.id,
           type: e.type,
           url: e.url,
@@ -246,7 +362,7 @@ export async function generateDailyJournal(
         const intentMap = new Map<string, { events: any[]; count: number }>();
         
         for (const classification of classifications) {
-          const event = events.find(e => e.id === classification.id);
+          const event = filteredEvents.find(e => e.id === classification.id);
           if (event) {
             if (!intentMap.has(classification.category)) {
               intentMap.set(classification.category, { events: [], count: 0 });
@@ -276,7 +392,7 @@ export async function generateDailyJournal(
       interaction: { count: 0, time_spent_ms: 0 },
     };
     
-    for (const event of events) {
+    for (const event of filteredEvents) {
       if (['nav', 'load'].includes(event.type)) {
         intentBreakdown.navigation.count++;
       } else {
@@ -284,21 +400,22 @@ export async function generateDailyJournal(
       }
     }
     
-    const totalTime = calculateActiveTime(events);
+    const totalTime = calculateActiveTime(filteredEvents);
     intentBreakdown.navigation.time_spent_ms = totalTime / 2;
     intentBreakdown.interaction.time_spent_ms = totalTime / 2;
   }
 
-  // Pattern summaries
-  const frequencyPatterns = summarizeFrequencyPatterns();
-  const temporalPatterns = summarizeTemporalPatterns();
+  // Pattern summaries - Re-detect patterns from filtered events
+  // (Content script patterns are in-memory and not accessible from background)
+  const frequencyPatterns = detectFrequencyPatternsFromEvents(filteredEvents);
+  const temporalPatterns = detectTemporalPatternsFromEvents(filteredEvents);
 
   console.log(`[JournalGenerator] Patterns: ${frequencyPatterns.length} frequency, ${temporalPatterns.length} temporal`);
 
   // Calculate metadata
-  const totalEvents = events.length;
-  const activeTime = calculateActiveTime(events);
-  const sessions = calculateSessions(events);
+  const totalEvents = filteredEvents.length;
+  const activeTime = calculateActiveTime(filteredEvents);
+  const sessions = calculateSessions(filteredEvents);
 
   // Generate productivity insights using LLM
   let productivityInsights: string[] = [];
