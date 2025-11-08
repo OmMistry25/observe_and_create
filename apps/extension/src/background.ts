@@ -680,24 +680,29 @@ async function generateJournal(date?: string, options: { useLLM?: boolean } = {}
  */
 async function getEventsForDate(date: string): Promise<any[]> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open('ObserveCreateDB', 1);
+    // Use the correct database name for offline event queue
+    const request = indexedDB.open('observe_create_offline', 1);
 
     request.onerror = () => reject(request.error);
 
     request.onsuccess = () => {
       const db = request.result;
       
-      if (!db.objectStoreNames.contains('offline-queue')) {
+      // Use the correct object store name
+      if (!db.objectStoreNames.contains('event_queue')) {
+        console.warn('[Background] event_queue store not found in database');
         resolve([]);
+        db.close();
         return;
       }
 
-      const transaction = db.transaction(['offline-queue'], 'readonly');
-      const store = transaction.objectStore('offline-queue');
+      const transaction = db.transaction(['event_queue'], 'readonly');
+      const store = transaction.objectStore('event_queue');
       const getAllRequest = store.getAll();
       
       getAllRequest.onsuccess = () => {
         const items = (getAllRequest.result || []) as any[];
+        console.log(`[Background] Found ${items.length} total events in IndexedDB`);
         
         // Filter events for the target date
         const targetDateStart = new Date(date + 'T00:00:00').getTime();
@@ -706,14 +711,20 @@ async function getEventsForDate(date: string): Promise<any[]> {
         const filteredEvents = items
           .map(item => item.event)
           .filter(event => {
+            if (!event) return false;
             const timestamp = event.client_timestamp || Date.parse(event.local_timestamp);
             return timestamp >= targetDateStart && timestamp <= targetDateEnd;
           });
         
+        console.log(`[Background] Filtered to ${filteredEvents.length} events for date ${date}`);
+        db.close();
         resolve(filteredEvents);
       };
       
-      getAllRequest.onerror = () => reject(getAllRequest.error);
+      getAllRequest.onerror = () => {
+        db.close();
+        reject(getAllRequest.error);
+      };
     };
   });
 }
