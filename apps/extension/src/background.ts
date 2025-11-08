@@ -654,26 +654,39 @@ async function generateJournal(date?: string, options: { useLLM?: boolean } = {}
 
     // Ensure offscreen document is available for LLM if needed
     if (options.useLLM) {
-      const offscreenReady = await ensureOffscreenDocument();
-      if (!offscreenReady) {
-        console.warn('[Background] Offscreen document not available, generating without LLM');
+      try {
+        const offscreenReady = await ensureOffscreenDocument();
+        if (!offscreenReady) {
+          console.warn('[Background] Offscreen document not available, generating without LLM');
+          options.useLLM = false;
+        }
+      } catch (error) {
+        console.warn('[Background] Failed to create offscreen document:', error);
         options.useLLM = false;
       }
     }
 
     // Generate journal entry
+    console.log('[Background] Calling generateDailyJournal with', events.length, 'events...');
     const journal = await generateDailyJournal(events, targetDate, {
       classifyIntents: options.useLLM,
     });
+    console.log('[Background] generateDailyJournal completed');
 
     // Save journal entry
+    console.log('[Background] Saving journal entry...');
     await saveJournalEntry(journal);
+    console.log('[Background] Journal entry saved');
 
     console.log('[Background] ✅ Journal generated and saved:', journal.id);
 
-    // Close offscreen document to free memory
+    // Close offscreen document to free memory (but don't fail if this errors)
     if (options.useLLM) {
-      await closeOffscreenDocument();
+      try {
+        await closeOffscreenDocument();
+      } catch (error) {
+        console.warn('[Background] Failed to close offscreen document:', error);
+      }
     }
 
     return journal;
@@ -889,13 +902,18 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
     case 'GENERATE_JOURNAL':
       (async () => {
         try {
+          console.log('[Background] 🎯 External GENERATE_JOURNAL request received for date:', message.date);
           const journal = await generateJournal(message.date, { useLLM: message.useLLM ?? true });
+          console.log('[Background] ✅ Journal generated, sending response');
           sendResponse({ success: true, journal });
         } catch (error: any) {
-          console.error('[Background] Error generating journal:', error);
-          sendResponse({ success: false, error: error.message });
+          console.error('[Background] ❌ Error generating journal:', error);
+          sendResponse({ success: false, error: error.message || String(error) });
         }
-      })();
+      })().catch(err => {
+        console.error('[Background] ❌ Fatal error in GENERATE_JOURNAL:', err);
+        sendResponse({ success: false, error: 'Internal error: ' + (err.message || String(err)) });
+      });
       return true;
       
     case 'GET_JOURNAL_CONFIG':
