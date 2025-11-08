@@ -395,19 +395,34 @@ function generateFallbackInsights(
  */
 export async function saveJournalEntry(entry: JournalEntry): Promise<void> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open('ObserveCreateDB', 1);
+    // Use version 2 to ensure journals object store is created
+    const request = indexedDB.open('ObserveCreateDB', 2);
 
-    request.onerror = () => reject(request.error);
+    request.onerror = () => {
+      console.error('[JournalGenerator] Error opening database:', request.error);
+      reject(request.error);
+    };
 
     request.onupgradeneeded = (event) => {
+      console.log('[JournalGenerator] Upgrading database to include journals store');
       const db = (event.target as IDBOpenDBRequest).result;
       if (!db.objectStoreNames.contains('journals')) {
         db.createObjectStore('journals', { keyPath: 'id' });
+        console.log('[JournalGenerator] Created journals object store');
       }
     };
 
     request.onsuccess = () => {
       const db = request.result;
+      
+      // Check if journals store exists
+      if (!db.objectStoreNames.contains('journals')) {
+        console.error('[JournalGenerator] journals store not found even after upgrade');
+        db.close();
+        reject(new Error('journals object store not found'));
+        return;
+      }
+      
       const transaction = db.transaction(['journals'], 'readwrite');
       const store = transaction.objectStore('journals');
       
@@ -415,10 +430,22 @@ export async function saveJournalEntry(entry: JournalEntry): Promise<void> {
       
       putRequest.onsuccess = () => {
         console.log(`[JournalGenerator] ✅ Saved journal entry: ${entry.id}`);
+        db.close();
         resolve();
       };
       
-      putRequest.onerror = () => reject(putRequest.error);
+      putRequest.onerror = () => {
+        console.error('[JournalGenerator] Error saving journal:', putRequest.error);
+        db.close();
+        reject(putRequest.error);
+      };
+      
+      transaction.oncomplete = () => db.close();
+      transaction.onerror = () => {
+        console.error('[JournalGenerator] Transaction error:', transaction.error);
+        db.close();
+        reject(transaction.error);
+      };
     };
   });
 }
@@ -428,7 +455,7 @@ export async function saveJournalEntry(entry: JournalEntry): Promise<void> {
  */
 export async function getJournalEntry(date: string): Promise<JournalEntry | null> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open('ObserveCreateDB', 1);
+    const request = indexedDB.open('ObserveCreateDB', 2);
 
     request.onerror = () => reject(request.error);
 
@@ -458,7 +485,7 @@ export async function getJournalEntry(date: string): Promise<JournalEntry | null
  */
 export async function getAllJournalEntries(): Promise<JournalEntry[]> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open('ObserveCreateDB', 1);
+    const request = indexedDB.open('ObserveCreateDB', 2);
 
     request.onerror = () => reject(request.error);
 
