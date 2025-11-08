@@ -162,9 +162,40 @@ chrome.runtime.onInstalled.addListener((details) => {
   }
 });
 
-// Listen for messages from content scripts and popup
+// Helper function to validate external message origins
+function isValidExternalOrigin(url: string | undefined): boolean {
+  if (!url) return false;
+  
+  const allowedOrigins = [
+    /^https?:\/\/.*\.vercel\.app$/,
+    /^https?:\/\/localhost(:\d+)?$/,
+    /^https?:\/\/127\.0\.0\.1(:\d+)?$/,
+  ];
+  
+  try {
+    const origin = new URL(url).origin;
+    return allowedOrigins.some(pattern => pattern.test(origin));
+  } catch {
+    return false;
+  }
+}
+
+// Listen for messages from content scripts, popup, and external web pages
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('[Background] Received message:', message.type, sender);
+  
+  // Check if this is an external message (from a web page)
+  const isExternal = sender.url && !sender.url.startsWith('chrome-extension://');
+  
+  if (isExternal) {
+    // Validate external origin for security
+    if (!isValidExternalOrigin(sender.url)) {
+      console.warn('[Background] Rejected message from unauthorized origin:', sender.url);
+      sendResponse({ success: false, error: 'Unauthorized origin' });
+      return false;
+    }
+    console.log('[Background] ✅ External message from authorized origin:', sender.url);
+  }
   
   // Ignore messages meant for offscreen document (they'll be handled there)
   const offscreenMessages = ['EXPORT_ALL_DATA', 'EXPORT_EVENTS_DATA', 'EXPORT_JOURNALS_DATA', 

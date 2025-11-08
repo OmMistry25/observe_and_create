@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { sendMessageToExtension, isExtensionInstalled } from '@/lib/extension-config';
 
 interface JournalEntry {
   id: string;
@@ -41,20 +42,27 @@ export function DailyJournal() {
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [extensionInstalled, setExtensionInstalled] = useState<boolean | null>(null);
 
   useEffect(() => {
-    // Set today's date as default
-    const today = new Date().toISOString().split('T')[0];
-    setSelectedDate(today);
-    loadJournal(today);
-    loadAllJournals();
+    // Check if extension is installed
+    isExtensionInstalled().then(installed => {
+      setExtensionInstalled(installed);
+      if (installed) {
+        // Set today's date as default and load data
+        const today = new Date().toISOString().split('T')[0];
+        setSelectedDate(today);
+        loadJournal(today);
+        loadAllJournals();
+      }
+    });
   }, []);
 
   const loadJournal = async (date: string) => {
     setLoading(true);
     try {
-      // Request journal from extension
-      const response = await chrome.runtime.sendMessage({
+      // Request journal from extension via external messaging
+      const response = await sendMessageToExtension({
         type: 'GET_JOURNAL',
         date,
       });
@@ -74,7 +82,7 @@ export function DailyJournal() {
 
   const loadAllJournals = async () => {
     try {
-      const response = await chrome.runtime.sendMessage({
+      const response = await sendMessageToExtension({
         type: 'GET_ALL_JOURNALS',
       });
 
@@ -89,7 +97,7 @@ export function DailyJournal() {
   const generateJournal = async () => {
     setGenerating(true);
     try {
-      const response = await chrome.runtime.sendMessage({
+      const response = await sendMessageToExtension({
         type: 'GENERATE_JOURNAL',
         date: selectedDate,
         useLLM: true,
@@ -128,6 +136,56 @@ export function DailyJournal() {
       day: 'numeric',
     });
   };
+
+  // Show loading state while checking extension
+  if (extensionInstalled === null) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Daily Digital Journal</CardTitle>
+          <CardDescription>Checking for extension...</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Show error if extension is not installed
+  if (extensionInstalled === false) {
+    return (
+      <Card className="border-red-200 bg-red-50">
+        <CardHeader>
+          <CardTitle className="text-red-900">Extension Not Found</CardTitle>
+          <CardDescription className="text-red-700">
+            The Observe & Create extension is required to view your journal
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <p className="text-sm text-red-800">
+              To use this dashboard, please:
+            </p>
+            <ol className="list-decimal list-inside space-y-2 text-sm text-red-800">
+              <li>Install the Observe & Create Chrome extension</li>
+              <li>Ensure the extension is enabled in Chrome</li>
+              <li>Reload this page</li>
+            </ol>
+            <Button 
+              onClick={() => window.location.reload()} 
+              className="mt-4"
+              variant="outline"
+            >
+              Reload Page
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">

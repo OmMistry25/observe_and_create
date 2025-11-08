@@ -6,7 +6,7 @@
  * Shows side-by-side comparison of current vs optimized workflow
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { createBrowserClient } from '@/lib/supabase-client';
 
 interface WorkflowStep {
@@ -54,7 +54,7 @@ export default function WorkflowComparison() {
 
   const supabase = createBrowserClient();
 
-  const fetchAnalyses = async () => {
+  const fetchAnalyses = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -93,11 +93,11 @@ export default function WorkflowComparison() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [supabase]);
 
   useEffect(() => {
     fetchAnalyses();
-  }, []);
+  }, [fetchAnalyses]);
 
   const formatTime = (seconds: number) => {
     if (seconds < 60) return `${seconds}s`;

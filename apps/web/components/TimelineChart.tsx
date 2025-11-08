@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
   AreaChart,
   Area,
@@ -24,11 +24,7 @@ export function TimelineChart({ hours = 24, domain }: TimelineChartProps) {
   const [loading, setLoading] = useState(true);
   const [topDomains, setTopDomains] = useState<string[]>([]);
 
-  useEffect(() => {
-    fetchTimelineData();
-  }, [hours, domain]);
-
-  const fetchTimelineData = async () => {
+  const fetchTimelineData = useCallback(async () => {
     setLoading(true);
     try {
       const supabase = createBrowserClient();
@@ -92,7 +88,11 @@ export function TimelineChart({ hours = 24, domain }: TimelineChartProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [hours, domain]);
+
+  useEffect(() => {
+    fetchTimelineData();
+  }, [fetchTimelineData]);
 
   const formatDuration = (seconds: number) => {
     if (seconds < 60) return `${seconds}s`;
