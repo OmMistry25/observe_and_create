@@ -1,10 +1,7 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { getUser } from '@/lib/auth';
 
-export default async function Home() {
-  const user = await getUser();
-
+export default function Home() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-gray-50 to-gray-100">
       <main className="text-center space-y-8 px-4">
@@ -18,20 +15,9 @@ export default async function Home() {
         </div>
 
         <div className="flex gap-4 justify-center">
-          {user ? (
-            <Button asChild size="lg">
-              <Link href="/dashboard">Go to Dashboard</Link>
-            </Button>
-          ) : (
-            <>
-              <Button asChild size="lg">
-                <Link href="/auth/signup">Get Started</Link>
-              </Button>
-              <Button asChild size="lg" variant="outline">
-                <Link href="/auth/signin">Sign In</Link>
-              </Button>
-            </>
-          )}
+          <Button asChild size="lg">
+            <Link href="/dashboard">Go to Dashboard</Link>
+          </Button>
         </div>
 
         <div className="pt-8 text-sm text-muted-foreground">
