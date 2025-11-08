@@ -95,25 +95,32 @@ export function DailyJournal() {
   };
 
   const generateJournal = async () => {
+    console.log('[Dashboard] 🔨 Generate journal clicked for date:', selectedDate);
     setGenerating(true);
     try {
+      console.log('[Dashboard] 📤 Sending GENERATE_JOURNAL message...');
       const response = await sendMessageToExtension({
         type: 'GENERATE_JOURNAL',
         date: selectedDate,
         useLLM: true,
       });
 
-      if (response.success) {
+      console.log('[Dashboard] 📥 Received response:', response);
+
+      if (response && response.success) {
+        console.log('[Dashboard] ✅ Journal generated:', response.journal);
         setJournal(response.journal);
         loadAllJournals();
       } else {
-        alert('Failed to generate journal: ' + response.error);
+        console.error('[Dashboard] ❌ Failed to generate journal:', response);
+        alert('Failed to generate journal: ' + (response?.error || 'Unknown error'));
       }
     } catch (error) {
-      console.error('Failed to generate journal:', error);
-      alert('Failed to generate journal');
+      console.error('[Dashboard] ❌ Exception during journal generation:', error);
+      alert('Failed to generate journal: ' + (error instanceof Error ? error.message : 'Unknown error'));
     } finally {
       setGenerating(false);
+      console.log('[Dashboard] 🏁 Generate journal finished');
     }
   };
 
