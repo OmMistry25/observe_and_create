@@ -704,15 +704,23 @@ async function getEventsForDate(date: string): Promise<any[]> {
         const items = (getAllRequest.result || []) as any[];
         console.log(`[Background] Found ${items.length} total events in IndexedDB`);
         
-        // Filter events for the target date
-        const targetDateStart = new Date(date + 'T00:00:00').getTime();
-        const targetDateEnd = new Date(date + 'T23:59:59').getTime();
+        // Filter events for the target date (use UTC to match event timestamps)
+        const targetDateStart = new Date(date + 'T00:00:00.000Z').getTime();
+        const targetDateEnd = new Date(date + 'T23:59:59.999Z').getTime();
         
+        console.log(`[Background] Filtering for date range: ${new Date(targetDateStart).toISOString()} to ${new Date(targetDateEnd).toISOString()}`);
+        
+        let debugCount = 0;
         const filteredEvents = items
           .map(item => item.event)
           .filter(event => {
             if (!event) return false;
             const timestamp = event.client_timestamp || Date.parse(event.local_timestamp);
+            // Debug first few events
+            if (debugCount < 3) {
+              console.log(`[Background] Event timestamp: ${new Date(timestamp).toISOString()}, matches: ${timestamp >= targetDateStart && timestamp <= targetDateEnd}`);
+              debugCount++;
+            }
             return timestamp >= targetDateStart && timestamp <= targetDateEnd;
           });
         
