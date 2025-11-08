@@ -810,4 +810,93 @@ if (chrome.alarms) {
   console.warn('[Background] chrome.alarms not available');
 }
 
+// Handle external messages from web pages (requires externally_connectable in manifest)
+chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
+  console.log('[Background] 📨 External message received:', message.type, 'from:', sender.url);
+  
+  // Validate origin
+  if (!isValidExternalOrigin(sender.url)) {
+    console.warn('[Background] ❌ Rejected external message from unauthorized origin:', sender.url);
+    sendResponse({ success: false, error: 'Unauthorized origin' });
+    return false;
+  }
+  
+  console.log('[Background] ✅ External message from authorized origin:', sender.url);
+  
+  // Handle external messages
+  switch (message.type) {
+    case 'PING':
+      console.log('[Background] 🏓 PING received from dashboard');
+      sendResponse({ status: 'ok' });
+      return false;
+      
+    case 'GET_JOURNAL':
+      (async () => {
+        try {
+          const journal = await getJournalEntry(message.date);
+          sendResponse({ success: true, journal });
+        } catch (error: any) {
+          console.error('[Background] Error getting journal:', error);
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true; // Keep channel open for async response
+      
+    case 'GET_ALL_JOURNALS':
+      (async () => {
+        try {
+          const journals = await getAllJournalEntries();
+          sendResponse({ success: true, journals });
+        } catch (error: any) {
+          console.error('[Background] Error getting all journals:', error);
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+      
+    case 'GENERATE_JOURNAL':
+      (async () => {
+        try {
+          const journal = await generateJournal(message.date, { useLLM: message.useLLM ?? true });
+          sendResponse({ success: true, journal });
+        } catch (error: any) {
+          console.error('[Background] Error generating journal:', error);
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+      
+    case 'GET_JOURNAL_CONFIG':
+      (async () => {
+        try {
+          const config = await getJournalConfig();
+          sendResponse({ success: true, config });
+        } catch (error: any) {
+          console.error('[Background] Error getting journal config:', error);
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+      
+    case 'UPDATE_JOURNAL_CONFIG':
+      (async () => {
+        try {
+          await updateJournalConfig(message.config);
+          sendResponse({ success: true });
+        } catch (error: any) {
+          console.error('[Background] Error updating journal config:', error);
+          sendResponse({ success: false, error: error.message });
+        }
+      })();
+      return true;
+      
+    default:
+      console.warn('[Background] Unknown external message type:', message.type);
+      sendResponse({ success: false, error: 'Unknown message type' });
+      return false;
+  }
+});
+
+console.log('[Background] ✅ External message listener registered');
+
 export {};
