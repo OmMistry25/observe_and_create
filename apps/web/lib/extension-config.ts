@@ -19,7 +19,7 @@
 
 // TEMPORARY: Replace this with your actual extension ID
 // You can find it at chrome://extensions after loading the extension
-export const EXTENSION_ID = 'YOUR_EXTENSION_ID_HERE';
+export const EXTENSION_ID = 'pkcgaajogokeemkaknhnmchkiooophkh';
 
 /**
  * Check if the extension is installed and reachable
