@@ -25,12 +25,19 @@ export const EXTENSION_ID = 'pkcgaajogokeemkaknhnmchkiooophkh';
  * Check if the extension is installed and reachable
  */
 export async function isExtensionInstalled(): Promise<boolean> {
-  if (typeof chrome === 'undefined' || !chrome.runtime) {
-    return false; // Not in Chrome browser
+  // Check if we're in a browser environment with Chrome extensions API
+  if (typeof window === 'undefined') {
+    return false; // Not in browser (SSR)
+  }
+  
+  // Use type assertion to access chrome global
+  const chromeGlobal = (window as any).chrome;
+  if (!chromeGlobal || !chromeGlobal.runtime) {
+    return false; // Not in Chrome browser or extensions API not available
   }
 
   try {
-    const response = await chrome.runtime.sendMessage(EXTENSION_ID, { type: 'PING' });
+    const response = await chromeGlobal.runtime.sendMessage(EXTENSION_ID, { type: 'PING' });
     return response?.status === 'ok';
   } catch (error) {
     console.warn('[Extension] Not installed or unreachable:', error);
@@ -42,18 +49,21 @@ export async function isExtensionInstalled(): Promise<boolean> {
  * Send a message to the extension
  */
 export async function sendMessageToExtension(message: any): Promise<any> {
-  if (typeof chrome === 'undefined' || !chrome.runtime) {
+  // Check if we're in a browser environment
+  if (typeof window === 'undefined') {
+    throw new Error('Not in browser environment');
+  }
+  
+  // Use type assertion to access chrome global
+  const chromeGlobal = (window as any).chrome;
+  if (!chromeGlobal || !chromeGlobal.runtime) {
     throw new Error('Chrome extension APIs not available');
   }
 
-  if (EXTENSION_ID === 'YOUR_EXTENSION_ID_HERE') {
-    throw new Error('Please configure EXTENSION_ID in lib/extension-config.ts');
-  }
-
   return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage(EXTENSION_ID, message, (response) => {
-      if (chrome.runtime.lastError) {
-        reject(new Error(chrome.runtime.lastError.message));
+    chromeGlobal.runtime.sendMessage(EXTENSION_ID, message, (response: any) => {
+      if (chromeGlobal.runtime.lastError) {
+        reject(new Error(chromeGlobal.runtime.lastError.message));
       } else {
         resolve(response);
       }
